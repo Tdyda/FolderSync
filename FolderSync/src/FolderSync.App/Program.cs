@@ -2,6 +2,7 @@
 using FolderSync.App.Cli;
 using FolderSync.Core.Logging;
 using FolderSync.Core.Options;
+using FolderSync.Core.Scanning;
 using Microsoft.Extensions.Logging;
 
 try
@@ -19,6 +20,10 @@ try
     
     logger.LogInformation("Argumenty Ok. Znormalizowane wartości:");
     logger.LogInformation(opts.ToString());
+    
+    var scanner = new DirectoryScanner(loggerFactory.CreateLogger<DirectoryScanner>());
+    var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
+    var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
 
     return (int)ExitCode.Success;
 }
