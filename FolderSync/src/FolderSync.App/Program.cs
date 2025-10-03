@@ -1,6 +1,8 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
+using FolderSync.Core.Logging;
 using FolderSync.Core.Options;
+using Microsoft.Extensions.Logging;
 
 try
 {
@@ -11,9 +13,12 @@ try
     }
 
     SyncOptions opts = ArgsParser.Parse(args);
+
+    using var loggerFactory = LoggingConfigurator.Configure(opts.LogFilePath);
+    var logger = loggerFactory.CreateLogger("FolderSync");
     
-    Console.WriteLine("Argumenty Ok. Znormalizowane wartości:");
-    Console.WriteLine(opts.ToString());
+    logger.LogInformation("Argumenty Ok. Znormalizowane wartości:");
+    logger.LogInformation(opts.ToString());
 
     return (int)ExitCode.Success;
 }
@@ -23,4 +28,9 @@ catch (ArgumentException ex)
     await Console.Error.WriteLineAsync();
     ArgsParser.PrintUsage(Console.Error);
     return (int)ExitCode.InvalidArguments;
+}
+catch (Exception ex)
+{
+    await Console.Error.WriteLineAsync($"NIEOCZEKIWANY BŁĄD: {ex}");
+    return (int)ExitCode.UnhandledException;
 }
