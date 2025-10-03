@@ -1,5 +1,6 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
+using FolderSync.Core.Diff;
 using FolderSync.Core.Logging;
 using FolderSync.Core.Options;
 using FolderSync.Core.Scanning;
@@ -24,6 +25,8 @@ try
     var scanner = new DirectoryScanner(loggerFactory.CreateLogger<DirectoryScanner>());
     var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
     var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
+    var engine = new DiffEngine(loggerFactory.CreateLogger<DiffEngine>());
+    engine.Compute(sourceSnap, replicaSnap);
 
     return (int)ExitCode.Success;
 }
