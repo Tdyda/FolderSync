@@ -1,5 +1,6 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
+using FolderSync.Core.Copying;
 using FolderSync.Core.Diff;
 using FolderSync.Core.Logging;
 using FolderSync.Core.Options;
@@ -26,8 +27,10 @@ try
     var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
     var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
     var engine = new DiffEngine(loggerFactory.CreateLogger<DiffEngine>());
-    engine.Compute(sourceSnap, replicaSnap);
-
+    var diffResult = engine.Compute(sourceSnap, replicaSnap);
+    var copyEngine = new CopyEngine(loggerFactory.CreateLogger<CopyEngine>());
+    await copyEngine.ApplyAsync(sourceSnap, replicaSnap, diffResult);
+    
     return (int)ExitCode.Success;
 }
 catch (ArgumentException ex)
