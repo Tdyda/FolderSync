@@ -53,7 +53,7 @@ public sealed class DirectoryScanner : IDirectoryScanner
                     {
                         var fi = new FileInfo(file);
                         var meta = new FileMetadata(Size: fi.Exists ? fi.Length : 0L,
-                            LastWriteTimeUtc: DateTime.MinValue);
+                            LastWriteTimeUtc: fi.LastWriteTimeUtc);
                         var relFile = ToRelative(rootPath, file);
                         files[relFile] = meta;
                     }
