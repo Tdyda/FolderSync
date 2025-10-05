@@ -25,15 +25,20 @@ try
     logger.LogInformation(opts.ToString());
     
     var scanner = new DirectoryScanner(loggerFactory.CreateLogger<DirectoryScanner>());
-    var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
-    var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
     var engine = new DiffEngine(loggerFactory.CreateLogger<DiffEngine>());
-    var diffResult = engine.Compute(sourceSnap, replicaSnap);
     var copyEngine = new CopyEngine(loggerFactory.CreateLogger<CopyEngine>());
-    await copyEngine.ApplyAsync(sourceSnap, replicaSnap, diffResult);
     var deletionEngine = new DeletionEngine(loggerFactory.CreateLogger<DeletionEngine>());
-    await deletionEngine.DeleteAsync(sourceSnap, replicaSnap, diffResult);
     
+    using var timer = new PeriodicTimer(opts.Interval);
+    while (await timer.WaitForNextTickAsync())
+    {
+        var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
+        var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
+        var diffResult = engine.Compute(sourceSnap, replicaSnap);
+        await copyEngine.ApplyAsync(sourceSnap, replicaSnap, diffResult);
+        await deletionEngine.DeleteAsync(sourceSnap, replicaSnap, diffResult);
+    }
+
     return (int)ExitCode.Success;
 }
 catch (ArgumentException ex)
