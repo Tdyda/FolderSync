@@ -1,6 +1,7 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
 using FolderSync.Core.Copying;
+using FolderSync.Core.Deletion;
 using FolderSync.Core.Diff;
 using FolderSync.Core.Logging;
 using FolderSync.Core.Options;
@@ -30,6 +31,8 @@ try
     var diffResult = engine.Compute(sourceSnap, replicaSnap);
     var copyEngine = new CopyEngine(loggerFactory.CreateLogger<CopyEngine>());
     await copyEngine.ApplyAsync(sourceSnap, replicaSnap, diffResult);
+    var deletionEngine = new DeletionEngine(loggerFactory.CreateLogger<DeletionEngine>());
+    await deletionEngine.DeleteAsync(sourceSnap, replicaSnap, diffResult);
     
     return (int)ExitCode.Success;
 }
