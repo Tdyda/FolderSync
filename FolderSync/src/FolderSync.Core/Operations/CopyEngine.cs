@@ -39,19 +39,19 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         {
             Directory.CreateDirectory(targetDir);
             copy.DirsCreated++;
-            _logger.LogInformation("Created directory: {Dir}", targetDir);
+            logger.LogInformation("Created directory: {Dir}", targetDir);
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogWarning(ex, "Failed to create directory: {Dir}", targetDir);
-            _logger.LogDebug(ex, "Failed to create directory: {Dir}", targetDir);
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning(ex, "Failed to create directory: {Dir}", targetDir);
+            logger.LogDebug(ex, "Failed to create directory: {Dir}", targetDir);
         }
         catch (Exception ex)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogWarning("Unexpected error: {Msg}", ex.Message);
-            _logger.LogDebug(ex, "Unexpected error");
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Unexpected error: {Msg}", ex.Message);
+            logger.LogDebug(ex, "Unexpected error");
         }
     }
 
@@ -77,11 +77,11 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             var ts = info[relFile].LastWriteTimeUtc;
             File.SetLastWriteTimeUtc(dst, ts);
             copy.FilesCopied++;
-            _logger.LogInformation("Copied: {Rel} -> {Dst}", relFile, dst);
+            logger.LogInformation("Copied: {Rel} -> {Dst}", relFile, dst);
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            _logger.LogError(ex, "Failed to copy file: {Src} -> {Dst}", src, dst);
+            logger.LogError(ex, "Failed to copy file: {Src} -> {Dst}", src, dst);
         }
     }
 
@@ -128,7 +128,7 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            _logger.LogError(ex, "Failed to update file: {Src} -> {Dst}", src, dst);
+            logger.LogError(ex, "Failed to update file: {Src} -> {Dst}", src, dst);
         }
     }
 }

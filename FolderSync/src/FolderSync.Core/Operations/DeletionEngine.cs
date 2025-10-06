@@ -34,18 +34,18 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 File.SetAttributes(target, FileAttributes.Normal);
                 File.Delete(target);
                 del.FilesDeleted++;
-                _logger.LogInformation("Deleted file {File}", target);
+                logger.LogInformation("Deleted file {File}", target);
             }
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            if (!_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
-            _logger.LogDebug(ex, "Failed to delete file {File}", target);
+            if (!logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
+            logger.LogDebug(ex, "Failed to delete file {File}", target);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error");
+            logger.LogError(ex, "Unexpected error");
         }
     }
     private static IEnumerable<string> OrderDirsByDepthDesc(IEnumerable<string> dirsToDelete) =>
@@ -69,19 +69,19 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 TryUnsetReadOnly(target);
                 Directory.Delete(target, recursive: false);
                 del.DirsDeleted++;
-                _logger.LogInformation("Deleted directory {Dir}", target);
+                logger.LogInformation("Deleted directory {Dir}", target);
             }
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);
-            _logger.LogDebug(ex, "Failed to delete directory {Dir}", target);
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);
+            logger.LogDebug(ex, "Failed to delete directory {Dir}", target);
         }
         catch (Exception ex)
         {
-            _logger.LogError("Unexpected error");
-            _logger.LogDebug(ex, "Unexpected error");
+            logger.LogError("Unexpected error");
+            logger.LogDebug(ex, "Unexpected error");
         }
     }
     private void TryUnsetReadOnly(string path)
@@ -96,9 +96,9 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
         }
         catch (Exception ex)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogWarning("Failed to unset read only for file {File}", path);
-            _logger.LogDebug(ex, "Failed to unset read only for file {File}", path);
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Failed to unset read only for file {File}", path);
+            logger.LogDebug(ex, "Failed to unset read only for file {File}", path);
         }
     }
     private static bool IsDirectoryEmpty(string path)
