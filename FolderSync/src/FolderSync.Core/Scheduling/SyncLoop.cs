@@ -1,18 +1,14 @@
-using Microsoft.Extensions.Logging;
-
 namespace FolderSync.Core.Scheduling;
 
 public class SyncLoop
 {
-    private readonly ILogger<SyncLoop> _logger;
     private readonly SyncRunner _syncRunner;
     private readonly string _source;
     private readonly string _replica;
     private readonly TimeSpan _interval;
     
-    public SyncLoop(ILogger<SyncLoop> logger, SyncRunner syncRunner, string source, string replica, TimeSpan interval)
+    public SyncLoop(SyncRunner syncRunner, string source, string replica, TimeSpan interval)
     {
-        _logger = logger;
         _syncRunner = syncRunner;
         _source = source;
         _replica = replica;

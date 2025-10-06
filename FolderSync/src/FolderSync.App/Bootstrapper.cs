@@ -17,7 +17,7 @@ public static class Bootstrapper
         var copyEngine = new CopyEngine(lf.CreateLogger<CopyEngine>());
         var deletionEngine = new DeletionEngine(lf.CreateLogger<DeletionEngine>());
         var syncRunner = new SyncRunner(lf.CreateLogger<SyncRunner>(), scanner, engine, copyEngine, deletionEngine);
-        var syncLoop = new SyncLoop(lf.CreateLogger<SyncLoop>(), syncRunner, opts.SourcePath, opts.ReplicaPath, opts.Interval);
+        var syncLoop = new SyncLoop(syncRunner, opts.SourcePath, opts.ReplicaPath, opts.Interval);
 
         var cts = new CancellationTokenSource();
         return (syncLoop, cts);
