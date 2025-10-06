@@ -1,12 +1,6 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
-using FolderSync.Core.Copying;
-using FolderSync.Core.Deletion;
-using FolderSync.Core.Diff;
 using FolderSync.Core.Logging;
-using FolderSync.Core.Options;
-using FolderSync.Core.Scanning;
-using Microsoft.Extensions.Logging;
 
 try
 {
@@ -16,40 +10,23 @@ try
         return (int)ExitCode.Success;
     }
 
-    SyncOptions opts = ArgsParser.Parse(args);
-
+    var opts = ArgsParser.Parse(args);
     using var loggerFactory = LoggingConfigurator.Configure(opts.LogFilePath);
-    var logger = loggerFactory.CreateLogger("FolderSync");
-    
-    logger.LogInformation("Argumenty Ok. Znormalizowane wartości:");
-    logger.LogInformation(opts.ToString());
-    
-    var scanner = new DirectoryScanner(loggerFactory.CreateLogger<DirectoryScanner>());
-    var engine = new DiffEngine(loggerFactory.CreateLogger<DiffEngine>());
-    var copyEngine = new CopyEngine(loggerFactory.CreateLogger<CopyEngine>());
-    var deletionEngine = new DeletionEngine(loggerFactory.CreateLogger<DeletionEngine>());
-    
-    using var timer = new PeriodicTimer(opts.Interval);
-    while (await timer.WaitForNextTickAsync())
-    {
-        var sourceSnap = await scanner.BuildSnapshotAsync(opts.SourcePath);
-        var replicaSnap = await scanner.BuildSnapshotAsync(opts.ReplicaPath);
-        var diffResult = engine.Compute(sourceSnap, replicaSnap);
-        await copyEngine.ApplyAsync(sourceSnap, replicaSnap, diffResult);
-        await deletionEngine.DeleteAsync(sourceSnap, replicaSnap, diffResult);
-    }
+    (var loop, var cts) = Bootstrapper.Build(loggerFactory, opts);
+
+    loop.RunAsync(cts.Token).GetAwaiter().GetResult();
 
     return (int)ExitCode.Success;
 }
 catch (ArgumentException ex)
 {
-    await Console.Error.WriteLineAsync($"BŁĄD ARGUMENTÓW: {ex.Message}");
+    await Console.Error.WriteLineAsync($"Invalid arguments: {ex.Message}");
     await Console.Error.WriteLineAsync();
     ArgsParser.PrintUsage(Console.Error);
     return (int)ExitCode.InvalidArguments;
 }
 catch (Exception ex)
 {
-    await Console.Error.WriteLineAsync($"NIEOCZEKIWANY BŁĄD: {ex}");
+    await Console.Error.WriteLineAsync($"Unexpected error: {ex}");
     return (int)ExitCode.UnhandledException;
 }

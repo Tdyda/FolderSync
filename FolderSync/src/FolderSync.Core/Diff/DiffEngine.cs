@@ -68,10 +68,6 @@ public class DiffEngine
             FilesToUpdate = filesToUpdate
         };
         
-        _logger.LogInformation(
-            "Diff: createDirs={CreateD} deleteDirs={DeleteD} copy={Copy} update={Update} delete={Delete}",
-            result.DirsToCreate.Count, result.DirsToDelete.Count,
-            result.FilesToCopy.Count, result.FilesToUpdate.Count, result.FilesToDelete.Count);
         return result;
     }
 
