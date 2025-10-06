@@ -1,4 +1,4 @@
-﻿using FolderSync.Core.Options;
+﻿using FolderSync.Core.Configuration;
 using FolderSync.Core.Scanning;
 
 namespace FolderSync.App.Cli;
