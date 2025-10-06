@@ -37,7 +37,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 _logger.LogInformation("Deleted file {File}", target);
             }
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
             if (!_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
@@ -72,7 +72,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 _logger.LogInformation("Deleted directory {Dir}", target);
             }
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);
@@ -112,9 +112,4 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
             return false;
         }
     }
-    private static bool IsBenignIo(Exception ex) => ex is IOException
-                                                    || ex is UnauthorizedAccessException
-                                                    || ex is DirectoryNotFoundException
-                                                    || ex is FileNotFoundException
-                                                    || ex is PathTooLongException;
 }

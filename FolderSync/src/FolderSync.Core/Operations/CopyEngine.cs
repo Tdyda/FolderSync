@@ -41,7 +41,7 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             copy.DirsCreated++;
             _logger.LogInformation("Created directory: {Dir}", targetDir);
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogWarning(ex, "Failed to create directory: {Dir}", targetDir);
@@ -79,7 +79,7 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             copy.FilesCopied++;
             _logger.LogInformation("Copied: {Rel} -> {Dst}", relFile, dst);
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
             _logger.LogError(ex, "Failed to copy file: {Src} -> {Dst}", src, dst);
         }
@@ -126,15 +126,9 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             copy.FilesCopied++;
             _logger.LogInformation("Updated: {Rel} -> {Dst}", relFile, dst);
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
             _logger.LogError(ex, "Failed to update file: {Src} -> {Dst}", src, dst);
         }
     }
-
-    private static bool IsBenignIo(Exception ex) => ex is IOException
-                                                    || ex is UnauthorizedAccessException
-                                                    || ex is DirectoryNotFoundException
-                                                    || ex is FileNotFoundException
-                                                    || ex is PathTooLongException;
 }
