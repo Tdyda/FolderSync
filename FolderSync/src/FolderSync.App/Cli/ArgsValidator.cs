@@ -11,12 +11,13 @@ public class ArgsValidator
         var replica = Require(dict, "--replica");
         var intervalStr = Require(dict, "--interval");
         var logPath = Require(dict, "--log");
+        var isDebug = dict.Any(a => a.Key == "--debug" && a.Value == "true");
 
         var interval = ParseInterval(intervalStr);
         if (interval <= TimeSpan.Zero)
             throw new ArgumentException("--interval must be positive.");
         
-        return new RawArgs(source, replica, interval, logPath);
+        return new RawArgs(source, replica, interval, logPath, isDebug);
     }
     private static string Require(Dictionary<string, string> dict, string key)
         {

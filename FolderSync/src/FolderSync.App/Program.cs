@@ -11,7 +11,7 @@ try
     }
 
     var opts = ArgsParser.Parse(args);
-    using var loggerFactory = LoggingConfigurator.Configure(opts.LogFilePath);
+    using var loggerFactory = LoggingConfigurator.Configure(opts.LogFilePath, opts.IsDebug);
     (var loop, var cts) = Bootstrapper.Build(loggerFactory, opts);
 
     loop.RunAsync(cts.Token).GetAwaiter().GetResult();
