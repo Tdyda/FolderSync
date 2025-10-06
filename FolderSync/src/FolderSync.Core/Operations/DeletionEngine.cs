@@ -1,10 +1,9 @@
 using FolderSync.Core.Common;
-using FolderSync.Core.Diff;
+using FolderSync.Core.Results;
 using FolderSync.Core.Scanning;
-using FolderSync.Core.Scheduling;
 using Microsoft.Extensions.Logging;
 
-namespace FolderSync.Core.Deletion;
+namespace FolderSync.Core.Operations;
 
 public class DeletionEngine
 {
