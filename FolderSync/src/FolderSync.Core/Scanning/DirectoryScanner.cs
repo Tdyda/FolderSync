@@ -1,14 +1,10 @@
-﻿using System.Collections;
-using FolderSync.Core.Abstractions;
+﻿using FolderSync.Core.Common;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Scanning;
 
-public sealed class DirectoryScanner : IDirectoryScanner
+public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirectoryScanner
 {
-    private readonly ILogger<DirectoryScanner> _logger;
-    public DirectoryScanner(ILogger<DirectoryScanner> logger) => _logger = logger;
-    
     public Task<DirectorySnapshot> BuildSnapshotAsync(string rootPath, CancellationToken ct = default)
     {
         if (!Directory.Exists(rootPath))
@@ -24,7 +20,7 @@ public sealed class DirectoryScanner : IDirectoryScanner
         {
             ct.ThrowIfCancellationRequested();
             var current = stack.Pop();
-            
+
             CollectChildDirectories(stack, dirs, current, rootPath);
             CollectFileMetadataInDirectory(files, current, rootPath);
         }
@@ -36,9 +32,10 @@ public sealed class DirectoryScanner : IDirectoryScanner
             Directories = dirs,
         };
 
-        _logger.LogInformation("Built {Snapshot}", snapshot);
+        logger.LogInformation("Built {Snapshot}", snapshot);
         return Task.FromResult(snapshot);
     }
+
     private void CollectChildDirectories(Stack<string> stack, HashSet<string> dirs, string currentDir, string rootPath)
     {
         try
@@ -47,7 +44,7 @@ public sealed class DirectoryScanner : IDirectoryScanner
             {
                 if (IsReparsePoint(dir))
                 {
-                    _logger.LogDebug("Skipping reparse point: {Dir}", dir);
+                    logger.LogDebug("Skipping reparse point: {Dir}", dir);
                     continue;
                 }
 
@@ -56,12 +53,16 @@ public sealed class DirectoryScanner : IDirectoryScanner
                 stack.Push(dir);
             }
         }
-        catch (Exception ex) when (IsBenignIo(ex))
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
-            _logger.LogWarning(ex, "Failed to enumerate directories in {Current}", currentDir);
+            if (!logger.IsEnabled(LogLevel.Error))
+                logger.LogWarning("Failed to enumerate directories in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Failed to enumerate directories in {Dir}", currentDir);
         }
     }
-    private void CollectFileMetadataInDirectory(Dictionary<string, FileMetadata> files, string currentDir, string rootPath)
+
+    private void CollectFileMetadataInDirectory(Dictionary<string, FileMetadata> files, string currentDir,
+        string rootPath)
     {
         try
         {
@@ -75,17 +76,22 @@ public sealed class DirectoryScanner : IDirectoryScanner
                     var relFile = ToRelative(rootPath, file);
                     files[relFile] = meta;
                 }
-                catch (Exception ex) when (IsBenignIo(ex))
+                catch (Exception ex) when (IoHelpers.IsBenign(ex))
                 {
-                    _logger.LogWarning(ex, "Failed to read file metadata: {File}", file);
+                    if (!logger.IsEnabled(LogLevel.Debug))
+                        logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
+                    logger.LogDebug(ex, "Failed to read file metadata: {File}", file);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to enumerate files in {Current}", currentDir);
+            if (!logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Failed to enumerate files in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Failed to enumerate files in {Current}", currentDir);
         }
     }
+
     private static bool IsReparsePoint(string path)
     {
         try
@@ -98,6 +104,7 @@ public sealed class DirectoryScanner : IDirectoryScanner
             return false;
         }
     }
+
     private static string ToRelative(string root, string fullPath)
     {
         var rel = Path.GetRelativePath(root, fullPath);
@@ -106,9 +113,4 @@ public sealed class DirectoryScanner : IDirectoryScanner
             .TrimEnd(Path.DirectorySeparatorChar);
         return rel;
     }
-    private static bool IsBenignIo(Exception ex) => ex is UnauthorizedAccessException
-                                                    || ex is IOException
-                                                    || ex is DirectoryNotFoundException
-                                                    || ex is FileNotFoundException
-                                                    || ex is PathTooLongException;
 }

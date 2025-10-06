@@ -5,12 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Operations;
 
-public class DeletionEngine
+public class DeletionEngine(ILogger<DeletionEngine> logger)
 {
-    private readonly ILogger<DeletionEngine> _logger;
-
-    public DeletionEngine(ILogger<DeletionEngine> logger) => _logger = logger;
-
     public Task<DelStats> DeleteAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff, CancellationToken ct = default)
     {
         var del = new DelStats();

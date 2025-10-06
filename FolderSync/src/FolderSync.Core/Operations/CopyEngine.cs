@@ -5,12 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Operations;
 
-public class CopyEngine
+public class CopyEngine(ILogger<CopyEngine> logger)
 {
-    private readonly ILogger<CopyEngine> _logger;
     private const string TempSuffix = ".fs_temp";
-
-    public CopyEngine(ILogger<CopyEngine> logger) => _logger = logger;
 
     public async Task<CopyStats> ApplyAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff,
         CancellationToken ct = default)

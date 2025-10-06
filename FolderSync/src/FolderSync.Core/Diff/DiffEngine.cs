@@ -1,14 +1,12 @@
-﻿using FolderSync.Core.Abstractions;
+﻿using FolderSync.Core.Common;
+using FolderSync.Core.Results;
 using FolderSync.Core.Scanning;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Diff;
 
-public class DiffEngine
+public class DiffEngine(ILogger logger)
 {
-    private readonly ILogger _logger;
-    public DiffEngine(ILogger logger) => _logger = logger;
-
     public DiffResult Compute(DirectorySnapshot source, DirectorySnapshot replica)
     {
         var comparer = PathComparer.ForPaths;
@@ -27,7 +25,7 @@ public class DiffEngine
             FilesToUpdate = filesToUpdate
         };
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Diff: Dirs to create: {Create}, dirs to delete: {DeleteDirs}, files to copy: {Copy}, files to update: {Update}, files to delete: {DeleteFiles}",
             result.DirsToCreate.Count, result.DirsToDelete.Count, result.FilesToCopy.Count, result.FilesToUpdate.Count,
             result.FilesToDelete.Count);
