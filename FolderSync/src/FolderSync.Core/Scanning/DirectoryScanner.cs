@@ -1,14 +1,10 @@
-﻿using FolderSync.Core.Abstractions;
+﻿using FolderSync.Core.Common;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Scanning;
 
-public sealed class DirectoryScanner : IDirectoryScanner
+public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirectoryScanner
 {
-    private readonly ILogger<DirectoryScanner> _logger;
-
-    public DirectoryScanner(ILogger<DirectoryScanner> logger) => _logger = logger;
-
     public Task<DirectorySnapshot> BuildSnapshotAsync(string rootPath, CancellationToken ct = default)
     {
         if (!Directory.Exists(rootPath))
@@ -25,48 +21,8 @@ public sealed class DirectoryScanner : IDirectoryScanner
             ct.ThrowIfCancellationRequested();
             var current = stack.Pop();
 
-            try
-            {
-                foreach (var dir in Directory.EnumerateDirectories(current))
-                {
-                    if (IsReparsePoint(dir))
-                    {
-                        _logger.LogDebug($"Skipping reparse point: {dir}");
-                        continue;
-                    }
-
-                    var relDir = ToRelative(rootPath, dir);
-                    dirs.Add(relDir);
-                    stack.Push(dir);
-                }
-            }
-            catch (Exception ex) when (IsBenignIo(ex))
-            {
-                _logger.LogWarning(ex, $"Failed to enumerate directories in {current}");
-            }
-
-            try
-            {
-                foreach (var file in Directory.EnumerateFiles(current))
-                {
-                    try
-                    {
-                        var fi = new FileInfo(file);
-                        var meta = new FileMetadata(Size: fi.Exists ? fi.Length : 0L,
-                            LastWriteTimeUtc: fi.LastWriteTimeUtc);
-                        var relFile = ToRelative(rootPath, file);
-                        files[relFile] = meta;
-                    }
-                    catch (Exception ex) when (IsBenignIo(ex))
-                    {
-                        _logger.LogWarning(ex, $"Failed to read file metadata: {file}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, $"Failed to enumerate files in {current}");
-            }
+            CollectChildDirectories(stack, dirs, current, rootPath);
+            CollectFileMetadataInDirectory(files, current, rootPath);
         }
 
         var snapshot = new DirectorySnapshot
@@ -76,8 +32,64 @@ public sealed class DirectoryScanner : IDirectoryScanner
             Directories = dirs,
         };
 
-        _logger.LogInformation($"Built {snapshot}");
+        logger.LogInformation("Built {Snapshot}", snapshot);
         return Task.FromResult(snapshot);
+    }
+
+    private void CollectChildDirectories(Stack<string> stack, HashSet<string> dirs, string currentDir, string rootPath)
+    {
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(currentDir))
+            {
+                if (IsReparsePoint(dir))
+                {
+                    logger.LogDebug("Skipping reparse point: {Dir}", dir);
+                    continue;
+                }
+
+                var relDir = ToRelative(rootPath, dir);
+                dirs.Add(relDir);
+                stack.Push(dir);
+            }
+        }
+        catch (Exception ex) when (IoHelpers.IsBenign(ex))
+        {
+            if (!logger.IsEnabled(LogLevel.Error))
+                logger.LogWarning("Failed to enumerate directories in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Failed to enumerate directories in {Dir}", currentDir);
+        }
+    }
+
+    private void CollectFileMetadataInDirectory(Dictionary<string, FileMetadata> files, string currentDir,
+        string rootPath)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(currentDir))
+            {
+                try
+                {
+                    var fi = new FileInfo(file);
+                    var meta = new FileMetadata(Size: fi.Exists ? fi.Length : 0L,
+                        LastWriteTimeUtc: fi.Exists ? fi.LastWriteTimeUtc : DateTime.MinValue);
+                    var relFile = ToRelative(rootPath, file);
+                    files[relFile] = meta;
+                }
+                catch (Exception ex) when (IoHelpers.IsBenign(ex))
+                {
+                    if (!logger.IsEnabled(LogLevel.Debug))
+                        logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
+                    logger.LogDebug(ex, "Failed to read file metadata: {File}", file);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!logger.IsEnabled(LogLevel.Debug))
+                logger.LogWarning("Failed to enumerate files in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Failed to enumerate files in {Current}", currentDir);
+        }
     }
 
     private static bool IsReparsePoint(string path)
@@ -101,10 +113,4 @@ public sealed class DirectoryScanner : IDirectoryScanner
             .TrimEnd(Path.DirectorySeparatorChar);
         return rel;
     }
-
-    private static bool IsBenignIo(Exception ex) => ex is UnauthorizedAccessException
-                                                    || ex is IOException
-                                                    || ex is DirectoryNotFoundException
-                                                    || ex is FileNotFoundException
-                                                    || ex is PathTooLongException;
 }

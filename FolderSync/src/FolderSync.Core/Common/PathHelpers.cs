@@ -1,4 +1,4 @@
-﻿namespace FolderSync.Core.Abstractions;
+﻿namespace FolderSync.Core.Common;
 
 public static class PathHelpers
 {

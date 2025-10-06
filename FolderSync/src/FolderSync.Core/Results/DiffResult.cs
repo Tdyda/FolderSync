@@ -1,4 +1,4 @@
-﻿namespace FolderSync.Core.Diff;
+﻿namespace FolderSync.Core.Results;
 
 public sealed class DiffResult
 {
