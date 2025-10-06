@@ -1,6 +1,6 @@
 ﻿using FolderSync.App;
 using FolderSync.App.Cli;
-using FolderSync.Core.Logging;
+using FolderSync.Core.Orchestration;
 
 try
 {

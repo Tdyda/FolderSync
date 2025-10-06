@@ -1,9 +1,8 @@
-using FolderSync.Core.Copying;
-using FolderSync.Core.Deletion;
+using FolderSync.Core.Configuration;
 using FolderSync.Core.Diff;
-using FolderSync.Core.Options;
+using FolderSync.Core.Operations;
+using FolderSync.Core.Orchestration;
 using FolderSync.Core.Scanning;
-using FolderSync.Core.Scheduling;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.App;

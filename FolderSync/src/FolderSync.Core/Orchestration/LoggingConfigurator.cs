@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Serilog;
 
-namespace FolderSync.Core.Logging;
+namespace FolderSync.Core.Orchestration;
 
 public static class LoggingConfigurator
 {
