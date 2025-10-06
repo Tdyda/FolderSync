@@ -123,8 +123,8 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             await AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
             var ts = info[relFile].LastWriteTimeUtc;
             File.SetLastWriteTimeUtc(dst, ts);
-            copy.FilesCopied++;
-            _logger.LogInformation("Updated: {Rel} -> {Dst}", relFile, dst);
+            copy.FilesUpdated++;
+            logger.LogInformation("Updated: {Rel} -> {Dst}", relFile, dst);
         }
         catch (Exception ex) when (IoHelpers.IsBenign(ex))
         {
