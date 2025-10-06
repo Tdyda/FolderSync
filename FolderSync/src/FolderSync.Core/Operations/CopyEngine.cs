@@ -1,4 +1,4 @@
-﻿using FolderSync.Core.Abstractions;
+﻿using FolderSync.Core.Common;
 using FolderSync.Core.Diff;
 using FolderSync.Core.Scanning;
 using FolderSync.Core.Scheduling;

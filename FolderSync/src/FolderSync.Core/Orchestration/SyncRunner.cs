@@ -1,11 +1,11 @@
 using System.Diagnostics;
-using FolderSync.Core.Copying;
-using FolderSync.Core.Deletion;
 using FolderSync.Core.Diff;
+using FolderSync.Core.Operations;
 using FolderSync.Core.Scanning;
+using FolderSync.Core.Scheduling;
 using Microsoft.Extensions.Logging;
 
-namespace FolderSync.Core.Scheduling;
+namespace FolderSync.Core.Orchestration;
 
 public class SyncRunner
 {
