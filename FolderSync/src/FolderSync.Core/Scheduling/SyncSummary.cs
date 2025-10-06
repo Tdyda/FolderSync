@@ -14,5 +14,5 @@ public sealed class SyncSummary
     public override string ToString() =>
         $"Files copied: {FilesCopied}, files updated: {FilesUpdated}, " +
         $"files deleted: {FilesDeleted}, dirs created: {DirsCreated}, " +
-        $"dirs deleted: {DirsDeleted}, elapsed: {Elapsed}";
+        $"dirs deleted: {DirsDeleted}, elapsed: {Elapsed}, started: {StartedUtc}, finished: {FinishedUtc}";
 }
