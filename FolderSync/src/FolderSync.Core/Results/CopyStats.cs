@@ -1,8 +1,8 @@
-﻿namespace FolderSync.Core.Scheduling;
+﻿namespace FolderSync.Core.Results;
 
-public class CopyStats()
+public class CopyStats
 {
-    public int FilesCopied { get; set; } = default;
-    public int FilesUpdated { get; set; } = default;
-    public int DirsCreated { get; set; } = default;
+    public int FilesCopied { get; set; }
+    public int FilesUpdated { get; set; }
+    public int DirsCreated { get; set; }
 }
