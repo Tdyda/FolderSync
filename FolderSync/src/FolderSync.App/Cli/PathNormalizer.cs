@@ -1,6 +1,6 @@
 ﻿namespace FolderSync.App.Cli;
 
-public class PathNormalizer
+public static class PathNormalizer
 {
     public static string NormalizeExistingDirectory(string path, bool mustExist, string name)
         {
