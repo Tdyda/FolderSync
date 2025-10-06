@@ -91,8 +91,8 @@ public class CopyEngine(ILogger<CopyEngine> logger)
 
         var tempFile = destinationFile + TempSuffix + "." + Guid.NewGuid().ToString("N");
 
-        using (var src = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-        using (var dst = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
+        await using (var src = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+        await using (var dst = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             await src.CopyToAsync(dst, ct).ConfigureAwait(false);
         }
