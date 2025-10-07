@@ -1,4 +1,5 @@
 using FolderSync.Core.Common;
+using FolderSync.Core.Extensions;
 using FolderSync.Core.Results;
 using FolderSync.Core.Scanning;
 using Microsoft.Extensions.Logging;
@@ -21,7 +22,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
         foreach (var relFile in filesToDelete)
         {
             ct.ThrowIfCancellationRequested();
-            var target = PathHelpers.CombineUnderRoot(root, relFile);
+            var target = Path.Combine(root, relFile);
             DeleteSingleFile(target, del);
         }
     }
@@ -37,7 +38,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 logger.LogInformation("Deleted file {File}", target);
             }
         }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
+        catch (Exception ex) when (ex.IsBenign())
         {
             if (!logger.IsEnabled(LogLevel.Debug))
                 logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
@@ -60,7 +61,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
     }
     private void DeleteDirectoryIfEmpty(string root, string relDir, DelStats del)
     {
-        var target = PathHelpers.CombineUnderRoot(root, relDir);
+        var target = Path.Combine(root, relDir);
 
         try
         {
@@ -72,7 +73,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
                 logger.LogInformation("Deleted directory {Dir}", target);
             }
         }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
+        catch (Exception ex) when (ex.IsBenign())
         {
             if (logger.IsEnabled(LogLevel.Debug))
                 logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);

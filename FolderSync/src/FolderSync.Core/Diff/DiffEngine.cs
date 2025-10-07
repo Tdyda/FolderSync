@@ -12,9 +12,9 @@ public class DiffEngine(ILogger logger)
         var comparer = PathComparer.ForPaths;
         var dirsToCreate = ComputeDirsToCreate(source, replica, comparer);
         var dirsToDelete = ComputeDirsToDelete(source, replica, comparer);
-        var filesToCopy = ComputeFilesToCopy(source, replica, comparer);
+        var filesToCopy = ComputeFileDiff(source.Files, replica.Files, comparer);
         var filesToUpdate = ComputeFilesToUpdate(source, replica, comparer);
-        var filesToDelete = ComputeFilesToDelete(source, replica, comparer);
+        var filesToDelete = ComputeFileDiff(replica.Files, source.Files, comparer);
 
         var result = new DiffResult
         {
@@ -42,13 +42,9 @@ public class DiffEngine(ILogger logger)
         new HashSet<string>(replica.Directories.Where(d => !string.IsNullOrEmpty(d)).Except(source.Directories, cmp),
             cmp);
 
-    private static HashSet<string> ComputeFilesToCopy(DirectorySnapshot source, DirectorySnapshot replica,
-        IEqualityComparer<string> cmp) =>
-        new HashSet<string>(source.Files.Keys.Except(replica.Files.Keys, cmp), cmp);
-
-    private static HashSet<string> ComputeFilesToDelete(DirectorySnapshot source, DirectorySnapshot replica,
-        IEqualityComparer<string> cmp) =>
-        new HashSet<string>(replica.Files.Keys.Except(source.Files.Keys, cmp), cmp);
+    private static HashSet<string> ComputeFileDiff(IReadOnlyDictionary<string, FileMetadata> left,
+        IReadOnlyDictionary<string, FileMetadata> right,
+        IEqualityComparer<string> cmp) => new(left.Keys.Except(right.Keys, cmp), cmp);
 
     private static HashSet<string> ComputeFilesToUpdate(DirectorySnapshot source, DirectorySnapshot replica,
         IEqualityComparer<string> cmp) =>

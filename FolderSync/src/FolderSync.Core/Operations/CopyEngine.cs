@@ -1,4 +1,5 @@
 ﻿using FolderSync.Core.Common;
+using FolderSync.Core.Extensions;
 using FolderSync.Core.Results;
 using FolderSync.Core.Scanning;
 using Microsoft.Extensions.Logging;
@@ -15,8 +16,10 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         var copy = new CopyStats();
 
         CreateDirectories(diff.DirsToCreate, replica.RootPath, copy, ct);
-        await CopyFiles(diff.FilesToCopy, source.RootPath, replica.RootPath, source.Files, copy, ct).ConfigureAwait(false);
-        await UpdateFiles(diff.FilesToUpdate, source.RootPath, replica.RootPath, source.Files, copy, ct).ConfigureAwait(false);
+        await SyncFilesAsync(diff.FilesToCopy, source.RootPath, replica.RootPath, source.Files, copy, SyncMode.Copy,
+            ct);
+        await SyncFilesAsync(diff.FilesToUpdate, source.RootPath, replica.RootPath, source.Files, copy, SyncMode.Update,
+            ct);
 
         return copy;
     }
@@ -27,69 +30,79 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         foreach (var relDir in dirsToCreate)
         {
             ct.ThrowIfCancellationRequested();
-            CreateSingleDirectory(root, relDir, copy);
-        }
-    }
-
-    private void CreateSingleDirectory(string root, string relDir, CopyStats copy)
-    {
-        var targetDir = PathHelpers.CombineUnderRoot(root, relDir);
-
-        try
-        {
-            Directory.CreateDirectory(targetDir);
-            copy.DirsCreated++;
-            logger.LogInformation("Created directory: {Dir}", targetDir);
-        }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
-        {
-            if (logger.IsEnabled(LogLevel.Debug))
-                logger.LogWarning(ex, "Failed to create directory: {Dir}", targetDir);
-            logger.LogDebug(ex, "Failed to create directory: {Dir}", targetDir);
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Debug))
+            var targetDir = Path.Combine(root, relDir);
+            try
+            {
+                Directory.CreateDirectory(targetDir);
+                copy.DirsCreated++;
+                logger.LogInformation("Created directory: {Dir}", targetDir);
+            }
+            catch (Exception ex) when (ex.IsBenign())
+            {
+                logger.LogWarning("Failed to create directory: {Dir}", targetDir);
+                logger.LogDebug(ex, "Failed to create directory: {Dir}", targetDir);
+            }
+            catch (Exception ex)
+            {
                 logger.LogWarning("Unexpected error: {Msg}", ex.Message);
-            logger.LogDebug(ex, "Unexpected error");
+                logger.LogDebug(ex, "Unexpected error");
+            }
         }
     }
 
-    private async Task CopyFiles(IEnumerable<string> filesToCopy, string rootSrc, string rootDst,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats copy, CancellationToken ct)
+    private enum SyncMode
     {
-        foreach (var relFile in filesToCopy)
+        Copy,
+        Update
+    }
+
+    private async Task SyncFilesAsync(IEnumerable<string> relFiles, string rootSrc, string rootDst,
+        IReadOnlyDictionary<string, FileMetadata> info, CopyStats stats, SyncMode mode, CancellationToken ct)
+    {
+        foreach (var rel in relFiles)
         {
             ct.ThrowIfCancellationRequested();
-            await CopySingleFile(rootSrc, rootDst, relFile, info, copy, ct).ConfigureAwait(false);
+
+            var src = Path.Combine(rootSrc, rel);
+            var dst = Path.Combine(rootDst, rel);
+
+            try
+            {
+                await FileOps.AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
+                File.SetLastWriteTimeUtc(dst, info[rel].LastWriteTimeUtc);
+
+                if (mode == SyncMode.Copy)
+                {
+                    stats.FilesCopied++;
+                    logger.LogInformation("Copied: {Rel} -> {Dst}", rel, dst);
+                }
+                else
+                {
+                    stats.FilesUpdated++;
+                    logger.LogInformation("Updated: {Rel} -> {Dst}", rel, dst);
+                }
+            }
+            catch (Exception ex) when (ex.IsBenign())
+            {
+                var verb = mode == SyncMode.Copy ? "copy" : "update";
+                logger.LogError("Failed to {Verb} file: {Src} -> {Dst}: {Error}", verb, src, dst, ex.Message);
+                logger.LogDebug(ex, "Stacktrace: ");
+            }
         }
     }
+}
 
-    private async Task CopySingleFile(string rootSrc, string rootDst, string relFile,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats copy, CancellationToken ct)
+internal static class FileOps
+{
+    private const string TempSuffix = ".fs_temp";
+
+    public static async Task AtomicCopyAsync(string sourceFile, string destinationFile, CancellationToken ct)
     {
-        var src = PathHelpers.CombineUnderRoot(rootSrc, relFile);
-        var dst = PathHelpers.CombineUnderRoot(rootDst, relFile);
+        var dir = Path.GetDirectoryName(destinationFile);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
 
-        try
-        {
-            await AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
-            var ts = info[relFile].LastWriteTimeUtc;
-            File.SetLastWriteTimeUtc(dst, ts);
-            copy.FilesCopied++;
-            logger.LogInformation("Copied: {Rel} -> {Dst}", relFile, dst);
-        }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
-        {
-            logger.LogError(ex, "Failed to copy file: {Src} -> {Dst}", src, dst);
-        }
-    }
-
-    private static async Task AtomicCopyAsync(string sourceFile, string destinationFile, CancellationToken ct)
-    {
-        PathHelpers.EnsureDirectoryForFile(destinationFile);
-
-        var tempFile = destinationFile + TempSuffix + "." + Guid.NewGuid().ToString("N");
+        var tempFile = $"{destinationFile}{TempSuffix}.{Guid.NewGuid():N}";
 
         await using (var src = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
         await using (var dst = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -101,34 +114,5 @@ public class CopyEngine(ILogger<CopyEngine> logger)
             File.Replace(tempFile, destinationFile, destinationBackupFileName: null, ignoreMetadataErrors: true);
         else
             File.Move(tempFile, destinationFile);
-    }
-
-    private async Task UpdateFiles(IEnumerable<string> filesToUpdate, string rootSrc, string rootDst,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats copy, CancellationToken ct)
-    {
-        foreach (var relFile in filesToUpdate)
-        {
-            ct.ThrowIfCancellationRequested();
-            await UpdateSingleFile(rootSrc, rootDst, relFile, info, copy, ct).ConfigureAwait(false);
-        }
-    }
-
-    private async Task UpdateSingleFile(string rootSrc, string rootDst, string relFile,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats copy, CancellationToken ct)
-    {
-        var src = PathHelpers.CombineUnderRoot(rootSrc, relFile);
-        var dst = PathHelpers.CombineUnderRoot(rootDst, relFile);
-        try
-        {
-            await AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
-            var ts = info[relFile].LastWriteTimeUtc;
-            File.SetLastWriteTimeUtc(dst, ts);
-            copy.FilesUpdated++;
-            logger.LogInformation("Updated: {Rel} -> {Dst}", relFile, dst);
-        }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
-        {
-            logger.LogError(ex, "Failed to update file: {Src} -> {Dst}", src, dst);
-        }
     }
 }

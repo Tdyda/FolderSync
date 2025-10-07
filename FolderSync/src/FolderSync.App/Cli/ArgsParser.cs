@@ -10,8 +10,7 @@ public static class ArgsParser
     public static SyncOptions Parse(string[] args)
     {
         var dict = ArgsLexer.ToDictionary(args);
-        var raw = ArgsValidator.ValidateArgs(dict);
-        return OptionsBuilder.BuildOpts(raw);
+        return ArgsValidator.ValidateArgs(dict);
     }
     public static void PrintUsage(TextWriter output)
     {

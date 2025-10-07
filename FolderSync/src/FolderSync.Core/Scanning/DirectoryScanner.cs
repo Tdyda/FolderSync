@@ -1,4 +1,5 @@
 ﻿using FolderSync.Core.Common;
+using FolderSync.Core.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Scanning;
@@ -53,7 +54,7 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
                 stack.Push(dir);
             }
         }
-        catch (Exception ex) when (IoHelpers.IsBenign(ex))
+        catch (Exception ex) when (ex.IsBenign())
         {
             if (!logger.IsEnabled(LogLevel.Error))
                 logger.LogWarning("Failed to enumerate directories in {Current}: {Error}", currentDir, ex.Message);
@@ -76,7 +77,7 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
                     var relFile = ToRelative(rootPath, file);
                     files[relFile] = meta;
                 }
-                catch (Exception ex) when (IoHelpers.IsBenign(ex))
+                catch (Exception ex) when (ex.IsBenign())
                 {
                     if (!logger.IsEnabled(LogLevel.Debug))
                         logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
