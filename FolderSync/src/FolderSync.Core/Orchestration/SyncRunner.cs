@@ -22,8 +22,8 @@ public class SyncRunner(
         var sourceSnap = await scanner.BuildSnapshotAsync(source, ct);
         var replicaSnap = await scanner.BuildSnapshotAsync(replica, ct);
         var diff1 = diff.Compute(sourceSnap, replicaSnap);
-        var copyStats = await copy.ApplyAsync(sourceSnap, replicaSnap, diff1, ct);
-        var delStats = await delete.DeleteAsync(sourceSnap, replicaSnap, diff1, ct);
+        var copyStats = await copy.ExecAsync(sourceSnap, replicaSnap, diff1, ct);
+        var delStats = await delete.ExecAsync(sourceSnap, replicaSnap, diff1, ct);
         sw.Stop();
 
         var summary = new SyncSummary

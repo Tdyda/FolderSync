@@ -1,25 +1,23 @@
-﻿using FolderSync.Core.Common;
-using FolderSync.Core.Extensions;
+﻿using FolderSync.Core.Extensions;
 using FolderSync.Core.Results;
 using FolderSync.Core.Scanning;
 using Microsoft.Extensions.Logging;
+using System.IO.Abstractions;
 
 namespace FolderSync.Core.Operations;
 
-public class CopyEngine(ILogger<CopyEngine> logger)
+public class CopyEngine(ILogger<CopyEngine> logger, IFileSystem fs, IFileOps fileOps)
 {
-    private const string TempSuffix = ".fs_temp";
-
-    public async Task<CopyStats> ApplyAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff,
+    public async Task<CopyStats> ExecAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff,
         CancellationToken ct = default)
     {
         var copy = new CopyStats();
 
         CreateDirectories(diff.DirsToCreate, replica.RootPath, copy, ct);
-        await SyncFilesAsync(diff.FilesToCopy, source.RootPath, replica.RootPath, source.Files, copy, SyncMode.Copy,
-            ct);
-        await SyncFilesAsync(diff.FilesToUpdate, source.RootPath, replica.RootPath, source.Files, copy, SyncMode.Update,
-            ct);
+        await SyncFilesAsync(diff.FilesToCopy, source.RootPath, replica.RootPath, source.Files, copy,
+            s => s.FilesCopied++, ct);
+        await SyncFilesAsync(diff.FilesToUpdate, source.RootPath, replica.RootPath, source.Files, copy,
+            s => s.FilesUpdated++, ct);
 
         return copy;
     }
@@ -30,10 +28,10 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         foreach (var relDir in dirsToCreate)
         {
             ct.ThrowIfCancellationRequested();
-            var targetDir = Path.Combine(root, relDir);
+            var targetDir = fs.Path.Combine(root, relDir);
             try
             {
-                Directory.CreateDirectory(targetDir);
+                fs.Directory.CreateDirectory(targetDir);
                 copy.DirsCreated++;
                 logger.LogInformation("Created directory: {Dir}", targetDir);
             }
@@ -50,69 +48,35 @@ public class CopyEngine(ILogger<CopyEngine> logger)
         }
     }
 
-    private enum SyncMode
-    {
-        Copy,
-        Update
-    }
-
+    // Considered using a record (data class) for the parameters, but for this small project
+    // introducing an extra file/type would add overhead with little benefit.
     private async Task SyncFilesAsync(IEnumerable<string> relFiles, string rootSrc, string rootDst,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats stats, SyncMode mode, CancellationToken ct)
+        IReadOnlyDictionary<string, FileMetadata> info, CopyStats stats, Action<CopyStats> bump,
+        CancellationToken ct)
     {
         foreach (var rel in relFiles)
         {
             ct.ThrowIfCancellationRequested();
 
-            var src = Path.Combine(rootSrc, rel);
-            var dst = Path.Combine(rootDst, rel);
+            var src = fs.Path.Combine(rootSrc, rel);
+            var dst = fs.Path.Combine(rootDst, rel);
 
             try
             {
-                await FileOps.AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
-                File.SetLastWriteTimeUtc(dst, info[rel].LastWriteTimeUtc);
+                await fileOps.AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
+                fs.File.SetLastWriteTimeUtc(dst, info[rel].LastWriteTimeUtc);
 
-                if (mode == SyncMode.Copy)
-                {
-                    stats.FilesCopied++;
-                    logger.LogInformation("Copied: {Rel} -> {Dst}", rel, dst);
-                }
-                else
-                {
-                    stats.FilesUpdated++;
-                    logger.LogInformation("Updated: {Rel} -> {Dst}", rel, dst);
-                }
+                var beforeCopied = stats.FilesCopied;
+                bump(stats);
+                var verb = stats.FilesCopied > beforeCopied ? "Copied" : "Updated";
+
+                logger.LogInformation("{Verb}: {Rel} -> {Dst}", verb, rel, dst);
             }
             catch (Exception ex) when (ex.IsBenign())
             {
-                var verb = mode == SyncMode.Copy ? "copy" : "update";
-                logger.LogError("Failed to {Verb} file: {Src} -> {Dst}: {Error}", verb, src, dst, ex.Message);
+                logger.LogError("Failed to process file: {Src} -> {Dst}: {Error}", src, dst, ex.Message);
                 logger.LogDebug(ex, "Stacktrace: ");
             }
         }
-    }
-}
-
-internal static class FileOps
-{
-    private const string TempSuffix = ".fs_temp";
-
-    public static async Task AtomicCopyAsync(string sourceFile, string destinationFile, CancellationToken ct)
-    {
-        var dir = Path.GetDirectoryName(destinationFile);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var tempFile = $"{destinationFile}{TempSuffix}.{Guid.NewGuid():N}";
-
-        await using (var src = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-        await using (var dst = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            await src.CopyToAsync(dst, ct).ConfigureAwait(false);
-        }
-
-        if (File.Exists(destinationFile))
-            File.Replace(tempFile, destinationFile, destinationBackupFileName: null, ignoreMetadataErrors: true);
-        else
-            File.Move(tempFile, destinationFile);
     }
 }

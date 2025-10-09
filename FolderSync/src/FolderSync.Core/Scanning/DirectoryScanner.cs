@@ -1,14 +1,15 @@
-﻿using FolderSync.Core.Common;
+﻿using System.IO.Abstractions;
+using FolderSync.Core.Common;
 using FolderSync.Core.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Scanning;
 
-public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirectoryScanner
+public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSystem fs) : IDirectoryScanner
 {
     public Task<DirectorySnapshot> BuildSnapshotAsync(string rootPath, CancellationToken ct = default)
     {
-        if (!Directory.Exists(rootPath))
+        if (!fs.Directory.Exists(rootPath))
             throw new DirectoryNotFoundException($"Directory not found: {rootPath}");
 
         var files = new Dictionary<string, FileMetadata>(PathComparer.ForPaths);
@@ -41,7 +42,7 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
     {
         try
         {
-            foreach (var dir in Directory.EnumerateDirectories(currentDir))
+            foreach (var dir in fs.Directory.EnumerateDirectories(currentDir))
             {
                 if (IsReparsePoint(dir))
                 {
@@ -56,22 +57,24 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
         }
         catch (Exception ex) when (ex.IsBenign())
         {
-            if (!logger.IsEnabled(LogLevel.Error))
-                logger.LogWarning("Failed to enumerate directories in {Current}: {Error}", currentDir, ex.Message);
-            logger.LogDebug(ex, "Failed to enumerate directories in {Dir}", currentDir);
+            logger.LogWarning("Failed to enumerate directories in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Stacktrace: ");
         }
     }
 
+    // NOTE: Considered an IFileMetadataProvider for pluggable metadata,
+    // but skipped due to stable requirements (size + LastWriteTimeUtc).
+    // Refactor here if this policy ever changes.
     private void CollectFileMetadataInDirectory(Dictionary<string, FileMetadata> files, string currentDir,
         string rootPath)
     {
         try
         {
-            foreach (var file in Directory.EnumerateFiles(currentDir))
+            foreach (var file in fs.Directory.EnumerateFiles(currentDir))
             {
                 try
                 {
-                    var fi = new FileInfo(file);
+                    var fi = fs.FileInfo.New(file);
                     var meta = new FileMetadata(Size: fi.Exists ? fi.Length : 0L,
                         LastWriteTimeUtc: fi.Exists ? fi.LastWriteTimeUtc : DateTime.MinValue);
                     var relFile = ToRelative(rootPath, file);
@@ -79,25 +82,23 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
                 }
                 catch (Exception ex) when (ex.IsBenign())
                 {
-                    if (!logger.IsEnabled(LogLevel.Debug))
-                        logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
-                    logger.LogDebug(ex, "Failed to read file metadata: {File}", file);
+                    logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
+                    logger.LogDebug(ex, "Stacktrace: ");
                 }
             }
         }
         catch (Exception ex)
         {
-            if (!logger.IsEnabled(LogLevel.Debug))
-                logger.LogWarning("Failed to enumerate files in {Current}: {Error}", currentDir, ex.Message);
-            logger.LogDebug(ex, "Failed to enumerate files in {Current}", currentDir);
+            logger.LogWarning("Failed to enumerate files in {Current}: {Error}", currentDir, ex.Message);
+            logger.LogDebug(ex, "Stacktrace: ");
         }
     }
 
-    private static bool IsReparsePoint(string path)
+    private bool IsReparsePoint(string path)
     {
         try
         {
-            var attr = File.GetAttributes(path);
+            var attr = fs.File.GetAttributes(path);
             return attr.HasFlag(FileAttributes.ReparsePoint);
         }
         catch
@@ -106,12 +107,12 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger) : IDirect
         }
     }
 
-    private static string ToRelative(string root, string fullPath)
+    private string ToRelative(string root, string fullPath)
     {
-        var rel = Path.GetRelativePath(root, fullPath);
+        var rel = fs.Path.GetRelativePath(root, fullPath);
 
-        rel = rel.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
-            .TrimEnd(Path.DirectorySeparatorChar);
+        rel = rel.Replace(fs.Path.AltDirectorySeparatorChar, fs.Path.DirectorySeparatorChar)
+            .TrimEnd(fs.Path.DirectorySeparatorChar);
         return rel;
     }
 }

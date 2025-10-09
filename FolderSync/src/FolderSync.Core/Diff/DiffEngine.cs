@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Diff;
 
-public class DiffEngine(ILogger logger)
+public class DiffEngine(ILogger<DiffEngine> logger)
 {
     public DiffResult Compute(DirectorySnapshot source, DirectorySnapshot replica)
     {

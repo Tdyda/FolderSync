@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.9" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="9.0.0-dev-02303" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.1-dev-00953" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.0.16" />
   </ItemGroup>
 
 </Project>

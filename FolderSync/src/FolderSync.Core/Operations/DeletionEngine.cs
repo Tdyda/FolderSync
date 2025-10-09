@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using FolderSync.Core.Common;
 using FolderSync.Core.Extensions;
 using FolderSync.Core.Results;
@@ -6,9 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Operations;
 
-public class DeletionEngine(ILogger<DeletionEngine> logger)
+public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
 {
-    public Task<DelStats> DeleteAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff, CancellationToken ct = default)
+    public Task<DelStats> ExecAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff,
+        CancellationToken ct = default)
     {
         var del = new DelStats();
 
@@ -17,82 +19,76 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
 
         return Task.FromResult(del);
     }
+
     private void DeleteFiles(string root, IEnumerable<string> filesToDelete, DelStats del, CancellationToken ct)
     {
         foreach (var relFile in filesToDelete)
         {
             ct.ThrowIfCancellationRequested();
-            var target = Path.Combine(root, relFile);
-            DeleteSingleFile(target, del);
-        }
-    }
-    private void DeleteSingleFile(string target, DelStats del)
-    {
-        try
-        {
-            if (File.Exists(target))
+            var target = fs.Path.Combine(root, relFile);
+            try
             {
-                File.SetAttributes(target, FileAttributes.Normal);
-                File.Delete(target);
-                del.FilesDeleted++;
-                logger.LogInformation("Deleted file {File}", target);
+                if (fs.File.Exists(target))
+                {
+                    fs.File.SetAttributes(target, FileAttributes.Normal);
+                    fs.File.Delete(target);
+                    del.FilesDeleted++;
+                    logger.LogInformation("Deleted file {File}", target);
+                }
+            }
+            catch (Exception ex) when (ex.IsBenign())
+            {
+                if (!logger.IsEnabled(LogLevel.Debug))
+                    logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
+                logger.LogDebug(ex, "Failed to delete file {File}", target);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unexpected error");
             }
         }
-        catch (Exception ex) when (ex.IsBenign())
-        {
-            if (!logger.IsEnabled(LogLevel.Debug))
-                logger.LogWarning("Failed to delete file {File}: {Error}", target, ex.Message);
-            logger.LogDebug(ex, "Failed to delete file {File}", target);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Unexpected error");
-        }
     }
-    private static IEnumerable<string> OrderDirsByDepthDesc(IEnumerable<string> dirsToDelete) =>
-        dirsToDelete.OrderByDescending(d => d.Count(ch => ch == Path.DirectorySeparatorChar));
+
     private void DeleteDirectories(string root, IEnumerable<string> dirsToDelete, DelStats del, CancellationToken ct)
     {
         foreach (var relDir in OrderDirsByDepthDesc(dirsToDelete))
         {
             ct.ThrowIfCancellationRequested();
-            DeleteDirectoryIfEmpty(root, relDir, del);
-        }
-    }
-    private void DeleteDirectoryIfEmpty(string root, string relDir, DelStats del)
-    {
-        var target = Path.Combine(root, relDir);
+            var target = fs.Path.Combine(root, relDir);
 
-        try
-        {
-            if (Directory.Exists(target) && IsDirectoryEmpty(target))
+            try
             {
-                TryUnsetReadOnly(target);
-                Directory.Delete(target, recursive: false);
-                del.DirsDeleted++;
-                logger.LogInformation("Deleted directory {Dir}", target);
+                var isEmpty = !fs.Directory.EnumerateDirectories(target).Any();
+                if (fs.Directory.Exists(target) && isEmpty)
+                {
+                    TryUnsetReadOnly(target);
+                    fs.Directory.Delete(target, recursive: false);
+                    del.DirsDeleted++;
+                    logger.LogInformation("Deleted directory {Dir}", target);
+                }
+            }
+            catch (Exception ex) when (ex.IsBenign())
+            {
+                if (logger.IsEnabled(LogLevel.Debug))
+                    logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);
+                logger.LogDebug(ex, "Failed to delete directory {Dir}", target);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError("Unexpected error");
+                logger.LogDebug(ex, "Unexpected error");
             }
         }
-        catch (Exception ex) when (ex.IsBenign())
-        {
-            if (logger.IsEnabled(LogLevel.Debug))
-                logger.LogWarning("Failed to delete directory {Dir}: {Error}", target, ex.Message);
-            logger.LogDebug(ex, "Failed to delete directory {Dir}", target);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError("Unexpected error");
-            logger.LogDebug(ex, "Unexpected error");
-        }
     }
+
     private void TryUnsetReadOnly(string path)
     {
-        var attr = File.GetAttributes(path);
+        var attr = fs.File.GetAttributes(path);
         try
         {
             if (attr.HasFlag(FileAttributes.ReadOnly))
             {
-                File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+                fs.File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
             }
         }
         catch (Exception ex)
@@ -102,15 +98,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger)
             logger.LogDebug(ex, "Failed to unset read only for file {File}", path);
         }
     }
-    private static bool IsDirectoryEmpty(string path)
-    {
-        try
-        {
-            return !Directory.EnumerateDirectories(path).Any();
-        }
-        catch
-        {
-            return false;
-        }
-    }
+
+    private IEnumerable<string> OrderDirsByDepthDesc(IEnumerable<string> dirsToDelete) =>
+        dirsToDelete.OrderByDescending(d => d.Count(ch => ch == fs.Path.DirectorySeparatorChar));
 }
