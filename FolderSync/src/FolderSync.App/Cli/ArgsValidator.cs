@@ -1,26 +1,33 @@
 ﻿using System.Globalization;
+using FolderSync.App.Cli.Interfaces;
 using FolderSync.Core.Configuration;
-using FolderSync.Core.Scanning;
 
 namespace FolderSync.App.Cli;
 
-public class ArgsValidator
+public class ArgsValidator : IArgsValidator
 {
-    public static SyncOptions ValidateArgs(Dictionary<string, string> dict)
+    private readonly IPathNormalizer _normalizer;
+
+    public ArgsValidator(IPathNormalizer normalizer)
     {
-        var source = Require(dict, "--source");
-        var replica = Require(dict, "--replica");
-        var intervalStr = Require(dict, "--interval");
-        var logPath = Require(dict, "--log");
-        var isDebug = dict.Any(a => a.Key == "--debug" && a.Value == "true");
+        _normalizer = normalizer;
+    }
+
+    public SyncOptions ValidateArgs(ParsedArgs parsedArgs)
+    {
+        var source = Require(parsedArgs.Flags, "--source");
+        var replica = Require(parsedArgs.Flags, "--replica");
+        var intervalStr = Require(parsedArgs.Flags, "--interval");
+        var logPath = Require(parsedArgs.Flags, "--log");
+        var isDebug = parsedArgs.Switches.Contains("--debug");
 
         var interval = ParseInterval(intervalStr);
         if (interval <= TimeSpan.Zero)
             throw new ArgumentException("--interval must be positive.");
-        
-        string normSource = PathNormalizer.NormalizeExistingDirectory( source, mustExist: true, name: "--source");
-        string normReplica = PathNormalizer.NormalizeDirectory(replica, name: "--replica");
-        string normLog = PathNormalizer.NormalizeFilePath(logPath, name: "--log");
+
+        var normSource = _normalizer.NormalizeExistingDirectory(source, true, "--source");
+        var normReplica = _normalizer.NormalizeDirectory(replica, "--replica");
+        var normLog = _normalizer.NormalizeFilePath(logPath, "--log");
 
         return new SyncOptions
         {
@@ -35,13 +42,13 @@ public class ArgsValidator
     private static string Require(Dictionary<string, string> dict, string key)
     {
         if (!dict.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException($"Lack of required flag {key}");
+            throw new ArgumentException($"Lack of required token {key}");
         return value.Trim();
     }
 
     private static TimeSpan ParseInterval(string value)
     {
-        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int seconds))
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
         {
             if (seconds <= 0) throw new ArgumentException("--interval in seconds must be greater than 0");
             return TimeSpan.FromSeconds(seconds);

@@ -1,15 +1,15 @@
 using System.Diagnostics;
-using FolderSync.Core.Diff;
-using FolderSync.Core.Operations;
 using FolderSync.Core.Results;
-using FolderSync.Core.Scanning;
+using FolderSync.Core.Sync.Diff;
+using FolderSync.Core.Sync.Operations;
+using FolderSync.Core.Sync.Scanning;
 using Microsoft.Extensions.Logging;
 
-namespace FolderSync.Core.Orchestration;
+namespace FolderSync.Core.Application;
 
 public class SyncRunner(
     ILogger<SyncRunner> logger,
-    IDirectoryScanner scanner,
+    DirectoryScanner scanner,
     DiffEngine diff,
     CopyEngine copy,
     DeletionEngine delete)
@@ -35,9 +35,9 @@ public class SyncRunner(
             DirsDeleted = delStats.DirsDeleted,
             Elapsed = sw.Elapsed,
             StartedUtc = start,
-            FinishedUtc = DateTime.UtcNow,
+            FinishedUtc = DateTime.UtcNow
         };
-        
+
         logger.LogInformation("Summary: {Summary}", summary);
         return summary;
     }

@@ -1,10 +1,11 @@
-﻿using FolderSync.Core.Extensions;
+﻿using System.IO.Abstractions;
+using FolderSync.Core.Operations;
 using FolderSync.Core.Results;
-using FolderSync.Core.Scanning;
+using FolderSync.Core.Sync.Scanning;
+using FolderSync.Core.Utilities;
 using Microsoft.Extensions.Logging;
-using System.IO.Abstractions;
 
-namespace FolderSync.Core.Operations;
+namespace FolderSync.Core.Sync.Operations;
 
 public class CopyEngine(ILogger<CopyEngine> logger, IFileSystem fs, IFileOps fileOps)
 {

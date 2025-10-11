@@ -1,13 +1,17 @@
 ﻿using System.IO.Abstractions;
+using FolderSync.Core.Operations;
 
-namespace FolderSync.Core.Operations;
+namespace FolderSync.Core.Sync.Operations;
 
 public class FileOps : IFileOps
 {
     private const string TempSuffix = ".fs_temp";
     private readonly IFileSystem _fs;
 
-    public FileOps(IFileSystem fs) => _fs = fs;
+    public FileOps(IFileSystem fs)
+    {
+        _fs = fs;
+    }
 
     public async Task AtomicCopyAsync(string sourceFile, string destinationFile, CancellationToken ct)
     {
@@ -24,7 +28,7 @@ public class FileOps : IFileOps
         }
 
         if (_fs.File.Exists(destinationFile))
-            _fs.File.Replace(tempFile, destinationFile, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            _fs.File.Replace(tempFile, destinationFile, null, true);
         else
             _fs.File.Move(tempFile, destinationFile);
     }

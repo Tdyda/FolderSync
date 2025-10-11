@@ -1,19 +1,22 @@
-﻿namespace FolderSync.App.Cli;
+﻿using FolderSync.App.Cli.Interfaces;
 
-public static class PathNormalizer
+namespace FolderSync.App.Cli;
+
+public class PathNormalizer : IPathNormalizer
 {
-    public static string NormalizeExistingDirectory(string path, bool mustExist, string name)
-        {
-            string full = Path.GetFullPath(path);
-            if (mustExist && !Directory.Exists(full))
-                throw new ArgumentException($"Path {name} doesn't exits: {full}");
-            return TrimEndingSeparators(full);
-        }
-    public static string NormalizeDirectory(string path, string name)
+    public string NormalizeExistingDirectory(string path, bool mustExist, string name)
+    {
+        var full = Path.GetFullPath(path);
+        if (mustExist && !Directory.Exists(full))
+            throw new ArgumentException($"Path {name} doesn't exist: {full}");
+        return TrimEndingSeparators(full);
+    }
+
+    public string NormalizeDirectory(string path, string name)
     {
         try
         {
-            string full = Path.GetFullPath(path);
+            var full = Path.GetFullPath(path);
             return TrimEndingSeparators(full);
         }
         catch (Exception ex)
@@ -21,11 +24,12 @@ public static class PathNormalizer
             throw new ArgumentException($"Incorrect path for {name}: {path}. {ex.Message}");
         }
     }
-    public static string NormalizeFilePath(string path, string name)
+
+    public string NormalizeFilePath(string path, string name)
     {
         try
         {
-            string full = Path.GetFullPath(path);
+            var full = Path.GetFullPath(path);
             var dir = Path.GetDirectoryName(full);
             if (string.IsNullOrWhiteSpace(dir))
                 throw new ArgumentException($"{name}: The file path must include a parent directory");
@@ -37,6 +41,7 @@ public static class PathNormalizer
             throw new ArgumentException($"Incorrect path for {name}: {path}. {ex.Message}");
         }
     }
+
     private static string TrimEndingSeparators(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return path;

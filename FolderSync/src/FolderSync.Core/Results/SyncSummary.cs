@@ -11,8 +11,10 @@ public sealed class SyncSummary
     public DateTime StartedUtc { get; set; }
     public DateTime FinishedUtc { get; set; }
 
-    public override string ToString() =>
-        $"Files copied: {FilesCopied}, files updated: {FilesUpdated}, " +
-        $"files deleted: {FilesDeleted}, dirs created: {DirsCreated}, " +
-        $"dirs deleted: {DirsDeleted}, elapsed: {Elapsed}, started: {StartedUtc}, finished: {FinishedUtc}";
+    public override string ToString()
+    {
+        return $"Files copied: {FilesCopied}, files updated: {FilesUpdated}, " +
+               $"files deleted: {FilesDeleted}, dirs created: {DirsCreated}, " +
+               $"dirs deleted: {DirsDeleted}, elapsed: {Elapsed}, started: {StartedUtc}, finished: {FinishedUtc}";
+    }
 }

@@ -1,32 +1,58 @@
-﻿using FolderSync.App;
+﻿using System.IO.Abstractions;
 using FolderSync.App.Cli;
-using FolderSync.Core.Orchestration;
+using FolderSync.App.Cli.Interfaces;
+using FolderSync.Core.Application;
+using FolderSync.Core.Configuration;
+using FolderSync.Core.Logging;
+using FolderSync.Core.Operations;
+using FolderSync.Core.Sync.Diff;
+using FolderSync.Core.Sync.Operations;
+using FolderSync.Core.Sync.Scanning;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
 
-try
+public static class Program
 {
-    if (ArgsParser.IsHelpRequested(args))
+    public static async Task<int> Main(string[] args)
     {
-        ArgsParser.PrintUsage(Console.Out);
-        return (int)ExitCode.Success;
+        Log.Logger = new LoggerConfiguration()
+            .WriteTo.Console()
+            .CreateBootstrapLogger();
+
+        using var host = Host.CreateDefaultBuilder(args)
+            .UseSerilog()
+            .ConfigureServices(s =>
+            {
+                s.AddSingleton(args);
+
+                s.AddSingleton<IArgsValidator, ArgsValidator>();
+                s.AddSingleton<IArgsLexer, ArgsLexer>();
+                s.AddSingleton<IArgsParser, ArgsParser>();
+
+                s.AddSingleton<IFileSystem, FileSystem>();
+                s.AddSingleton<IFileOps, FileOps>();
+                s.AddSingleton<IPathNormalizer, PathNormalizer>();
+
+                s.AddSingleton<DirectoryScanner>();
+                s.AddSingleton<DiffEngine>();
+                s.AddSingleton<CopyEngine>();
+                s.AddSingleton<DeletionEngine>();
+                s.AddSingleton<SyncRunner>();
+
+                s.AddSingleton<Func<SyncOptions, SyncLoop>>(sp => opts =>
+                {
+                    var runner = sp.GetRequiredService<SyncRunner>();
+                    return new SyncLoop(runner, opts.SourcePath, opts.ReplicaPath, opts.Interval);
+                });
+
+                s.AddSingleton<LoggingConfigurator>();
+
+                s.AddSingleton<AppRunner>();
+            })
+            .Build();
+
+        var app = host.Services.GetRequiredService<AppRunner>();
+        return await app.RunAsync();
     }
-
-    var opts = ArgsParser.Parse(args);
-    using var loggerFactory = LoggingConfigurator.Configure(opts.LogFilePath, opts.IsDebug);
-    (var loop, var cts) = Bootstrapper.Build(loggerFactory, opts);
-
-    loop.RunAsync(cts.Token).GetAwaiter().GetResult();
-
-    return (int)ExitCode.Success;
-}
-catch (ArgumentException ex)
-{
-    await Console.Error.WriteLineAsync($"Invalid arguments: {ex.Message}");
-    await Console.Error.WriteLineAsync();
-    ArgsParser.PrintUsage(Console.Error);
-    return (int)ExitCode.InvalidArguments;
-}
-catch (Exception ex)
-{
-    await Console.Error.WriteLineAsync($"Unexpected error: {ex}");
-    return (int)ExitCode.UnhandledException;
 }

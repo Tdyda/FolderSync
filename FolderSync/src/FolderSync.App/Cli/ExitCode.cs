@@ -1,8 +1,8 @@
-﻿namespace FolderSync.App;
+﻿namespace FolderSync.App.Cli;
 
-public enum ExitCode
+internal enum ExitCode
 {
     Success = 0,
     InvalidArguments = 2,
-    UnhandledException = 10,
+    UnhandledException = 10
 }

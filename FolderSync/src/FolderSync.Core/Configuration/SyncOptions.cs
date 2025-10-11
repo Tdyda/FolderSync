@@ -7,7 +7,9 @@ public sealed class SyncOptions
     public required TimeSpan Interval { get; init; }
     public required string LogFilePath { get; init; }
     public bool IsDebug { get; init; }
-    
-    public override string ToString() =>
-        $"Source={SourcePath}, Replica={ReplicaPath}, Interval={Interval}, Log={LogFilePath}";
+
+    public override string ToString()
+    {
+        return $"Source={SourcePath}, Replica={ReplicaPath}, Interval={Interval}, Log={LogFilePath}";
+    }
 }

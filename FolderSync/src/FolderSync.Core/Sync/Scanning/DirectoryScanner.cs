@@ -1,11 +1,10 @@
 ﻿using System.IO.Abstractions;
-using FolderSync.Core.Common;
-using FolderSync.Core.Extensions;
+using FolderSync.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace FolderSync.Core.Scanning;
+namespace FolderSync.Core.Sync.Scanning;
 
-public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSystem fs) : IDirectoryScanner
+public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSystem fs)
 {
     public Task<DirectorySnapshot> BuildSnapshotAsync(string rootPath, CancellationToken ct = default)
     {
@@ -31,7 +30,7 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
         {
             RootPath = rootPath,
             Files = files,
-            Directories = dirs,
+            Directories = dirs
         };
 
         logger.LogInformation("Built {Snapshot}", snapshot);
@@ -71,12 +70,11 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
         try
         {
             foreach (var file in fs.Directory.EnumerateFiles(currentDir))
-            {
                 try
                 {
                     var fi = fs.FileInfo.New(file);
-                    var meta = new FileMetadata(Size: fi.Exists ? fi.Length : 0L,
-                        LastWriteTimeUtc: fi.Exists ? fi.LastWriteTimeUtc : DateTime.MinValue);
+                    var meta = new FileMetadata(fi.Exists ? fi.Length : 0L,
+                        fi.Exists ? fi.LastWriteTimeUtc : DateTime.MinValue);
                     var relFile = ToRelative(rootPath, file);
                     files[relFile] = meta;
                 }
@@ -85,7 +83,6 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
                     logger.LogWarning("Failed to read file metadata: {File}: {Error}", file, ex.Message);
                     logger.LogDebug(ex, "Stacktrace: ");
                 }
-            }
         }
         catch (Exception ex)
         {

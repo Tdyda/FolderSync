@@ -1,11 +1,10 @@
 using System.IO.Abstractions;
-using FolderSync.Core.Common;
-using FolderSync.Core.Extensions;
 using FolderSync.Core.Results;
-using FolderSync.Core.Scanning;
+using FolderSync.Core.Sync.Scanning;
+using FolderSync.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace FolderSync.Core.Operations;
+namespace FolderSync.Core.Sync.Operations;
 
 public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
 {
@@ -62,7 +61,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
                 if (fs.Directory.Exists(target) && isEmpty)
                 {
                     TryUnsetReadOnly(target);
-                    fs.Directory.Delete(target, recursive: false);
+                    fs.Directory.Delete(target, false);
                     del.DirsDeleted++;
                     logger.LogInformation("Deleted directory {Dir}", target);
                 }
@@ -86,10 +85,7 @@ public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
         var attr = fs.File.GetAttributes(path);
         try
         {
-            if (attr.HasFlag(FileAttributes.ReadOnly))
-            {
-                fs.File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
-            }
+            if (attr.HasFlag(FileAttributes.ReadOnly)) fs.File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
         }
         catch (Exception ex)
         {
@@ -99,6 +95,8 @@ public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
         }
     }
 
-    private IEnumerable<string> OrderDirsByDepthDesc(IEnumerable<string> dirsToDelete) =>
-        dirsToDelete.OrderByDescending(d => d.Count(ch => ch == fs.Path.DirectorySeparatorChar));
+    private IEnumerable<string> OrderDirsByDepthDesc(IEnumerable<string> dirsToDelete)
+    {
+        return dirsToDelete.OrderByDescending(d => d.Count(ch => ch == fs.Path.DirectorySeparatorChar));
+    }
 }

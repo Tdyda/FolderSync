@@ -1,4 +1,4 @@
-﻿namespace FolderSync.Core.Common;
+﻿namespace FolderSync.Core.Utilities;
 
 public static class PathComparer
 {

@@ -1,73 +1,66 @@
-﻿namespace FolderSync.App.Cli;
+﻿using FolderSync.App.Cli.Interfaces;
+using FolderSync.Core.Configuration;
 
-public class ArgsLexer
+namespace FolderSync.App.Cli;
+
+public class ArgsLexer : IArgsLexer
 {
-    private static readonly HashSet<string> Known = new(StringComparer.OrdinalIgnoreCase)
+    private readonly HashSet<string> _knownFlags = new(StringComparer.OrdinalIgnoreCase)
     {
         "--source",
         "--replica",
         "--interval",
-        "--log",
+        "--log"
+    };
+
+    private readonly HashSet<string> _knowSwitches = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--debug",
         "--help",
         "-h",
         "/?"
     };
 
-    private static readonly HashSet<string> SwitchFlags = new(StringComparer.OrdinalIgnoreCase)
+
+    public ParsedArgs ToParsedArgs(string[] args)
     {
-        "--debug"
-    };
+        var result = new ParsedArgs();
 
-
-
-    public static Dictionary<string, string> ToDictionary(string[] args)
-    {
         if (args.Length == 0)
             throw new ArgumentException("Missing require arguments. Use --help");
 
-        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var token in args)
+            if (token.StartsWith('-') && _knowSwitches.Contains(token))
+                result.Switches.Add(token);
 
-        for (int i = 0; i < args.Length; i += 2)
+        string? pendingOption = null;
+        foreach (var token in args)
         {
-            var token = args[i];
-            if (token.StartsWith("-", StringComparison.Ordinal))
+            if (token.StartsWith('-') && _knowSwitches.Contains(token)) continue;
+
+            if (pendingOption != null)
             {
-                IsKnown(token);
-
-                if(IsHelpRequested(token)) break;
-
-                if (SwitchFlags.Contains(token))
-                {
-                    dict[token] = "true";
-                    continue;
-                }
-
-                if (i + 1 >= args.Length || args[i + 1].StartsWith("-", StringComparison.Ordinal))
-                    throw new ArgumentException($"Flag {token} require value");
-
-                dict[token] = args[i + 1];
+                result.Flags[pendingOption] = token;
+                pendingOption = null;
+                continue;
             }
-            else
-                throw new ArgumentException($"Unexpected token: {token}. Expected flag --key value");
+
+            if (token.StartsWith('-') && _knownFlags.Contains(token))
+            {
+                pendingOption = token;
+                continue;
+            }
+
+            throw new ArgumentException($"Unexpected token: {token}. Expected flag --key value");
         }
 
-        return dict;
+        return result;
     }
 
-    private static void IsKnown(string token)
+    public bool IsHelpRequested(string[] args)
     {
-        if (!Known.Contains(token) && !SwitchFlags.Contains(token))
-            throw new ArgumentException($"Unknown flag: {token}");
-    }
-
-    public static bool IsHelpRequested(string[] args) =>
-        args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
-                      || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase)
-                      || string.Equals(a, "/?", StringComparison.OrdinalIgnoreCase));
-    private static bool IsHelpRequested(string token)
-    {
-        return token.Equals("--help", StringComparison.OrdinalIgnoreCase) ||
-               token.Equals("-h", StringComparison.OrdinalIgnoreCase) ||
-               token.Equals("/?", StringComparison.OrdinalIgnoreCase);
+        return args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
+                             || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase)
+                             || string.Equals(a, "/?", StringComparison.OrdinalIgnoreCase));
     }
 }

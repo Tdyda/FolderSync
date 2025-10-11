@@ -1,18 +1,31 @@
-﻿using System.Globalization;
+﻿using FolderSync.App.Cli.Interfaces;
 using FolderSync.Core.Configuration;
-using FolderSync.Core.Scanning;
 
 namespace FolderSync.App.Cli;
 
-public static class ArgsParser
+public class ArgsParser : IArgsParser
 {
-    public static bool IsHelpRequested(string[] args) => ArgsLexer.IsHelpRequested(args);
-    public static SyncOptions Parse(string[] args)
+    private readonly IArgsLexer _lexer;
+    private readonly IArgsValidator _validator;
+
+    public ArgsParser(IArgsLexer lexer, IArgsValidator validator)
     {
-        var dict = ArgsLexer.ToDictionary(args);
-        return ArgsValidator.ValidateArgs(dict);
+        _lexer = lexer;
+        _validator = validator;
     }
-    public static void PrintUsage(TextWriter output)
+
+    public bool IsHelpRequested(string[] args)
+    {
+        return _lexer.IsHelpRequested(args);
+    }
+
+    public SyncOptions Parse(string[] args)
+    {
+        var parsedArgs = _lexer.ToParsedArgs(args);
+        return _validator.ValidateArgs(parsedArgs);
+    }
+
+    public void PrintUsage(TextWriter output)
     {
         output.WriteLine(
             @"Usage:
