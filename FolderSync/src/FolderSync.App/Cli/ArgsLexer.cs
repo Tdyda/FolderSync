@@ -1,9 +1,8 @@
-﻿using FolderSync.App.Cli.Interfaces;
-using FolderSync.Core.Configuration;
+﻿using FolderSync.Core.Configuration;
 
 namespace FolderSync.App.Cli;
 
-public class ArgsLexer : IArgsLexer
+public class ArgsLexer
 {
     private readonly HashSet<string> _knownFlags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -13,34 +12,32 @@ public class ArgsLexer : IArgsLexer
         "--log"
     };
 
-    private readonly HashSet<string> _knowSwitches = new(StringComparer.OrdinalIgnoreCase)
+    private readonly HashSet<string> _knownSwitches = new(StringComparer.OrdinalIgnoreCase)
     {
-        "--debug",
-        "--help",
-        "-h",
-        "/?"
+        "--debug"
     };
 
 
     public ParsedArgs ToParsedArgs(string[] args)
     {
-        var result = new ParsedArgs();
+        var switches = new HashSet<string>(StringComparer.Ordinal);
+        var tokens = new Dictionary<string, string>(StringComparer.Ordinal);
 
         if (args.Length == 0)
             throw new ArgumentException("Missing require arguments. Use --help");
 
         foreach (var token in args)
-            if (token.StartsWith('-') && _knowSwitches.Contains(token))
-                result.Switches.Add(token);
+            if (token.StartsWith('-') && _knownSwitches.Contains(token))
+                switches.Add(token);
 
         string? pendingOption = null;
         foreach (var token in args)
         {
-            if (token.StartsWith('-') && _knowSwitches.Contains(token)) continue;
+            if (token.StartsWith('-') && _knownSwitches.Contains(token)) continue;
 
             if (pendingOption != null)
             {
-                result.Flags[pendingOption] = token;
+                tokens[pendingOption] = token;
                 pendingOption = null;
                 continue;
             }
@@ -54,13 +51,10 @@ public class ArgsLexer : IArgsLexer
             throw new ArgumentException($"Unexpected token: {token}. Expected flag --key value");
         }
 
-        return result;
-    }
-
-    public bool IsHelpRequested(string[] args)
-    {
-        return args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
-                             || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase)
-                             || string.Equals(a, "/?", StringComparison.OrdinalIgnoreCase));
+        return new ParsedArgs
+        (
+            tokens,
+            switches
+        );
     }
 }

@@ -21,24 +21,25 @@ public class SyncRunner(
         sw.Start();
         var sourceSnap = await scanner.BuildSnapshotAsync(source, ct);
         var replicaSnap = await scanner.BuildSnapshotAsync(replica, ct);
-        var diff1 = diff.Compute(sourceSnap, replicaSnap);
-        var copyStats = await copy.ExecAsync(sourceSnap, replicaSnap, diff1, ct);
-        var delStats = await delete.ExecAsync(sourceSnap, replicaSnap, diff1, ct);
+        var diffResult = diff.Compute(sourceSnap, replicaSnap);
+        var operationStats = await copy.Run(sourceSnap.RootPath, replicaSnap.RootPath, diffResult.FilesToCopy,
+            diffResult.FilesToUpdate, diffResult.DirsToCreate, new OperationStats(), ct);
+        var delStats = await delete.Run(replicaSnap, diffResult, operationStats, ct);
         sw.Stop();
 
         var summary = new SyncSummary
         {
-            FilesCopied = copyStats.FilesCopied,
-            FilesUpdated = copyStats.FilesUpdated,
+            FilesCopied = operationStats.FilesCopied,
+            FilesUpdated = operationStats.FilesUpdated,
             FilesDeleted = delStats.FilesDeleted,
-            DirsCreated = copyStats.DirsCreated,
+            DirsCreated = operationStats.DirsCreated,
             DirsDeleted = delStats.DirsDeleted,
             Elapsed = sw.Elapsed,
             StartedUtc = start,
             FinishedUtc = DateTime.UtcNow
         };
 
-        logger.LogInformation("Summary: {Summary}", summary);
+        logger.LogInformation("Summary: {Summary}{NewLine}", summary, Environment.NewLine);
         return summary;
     }
 }

@@ -1,33 +1,25 @@
 ﻿using System.Globalization;
-using FolderSync.App.Cli.Interfaces;
 using FolderSync.Core.Configuration;
 
 namespace FolderSync.App.Cli;
 
-public class ArgsValidator : IArgsValidator
+public class ArgsValidator(PathNormalizer pathNormalizer)
 {
-    private readonly IPathNormalizer _normalizer;
-
-    public ArgsValidator(IPathNormalizer normalizer)
-    {
-        _normalizer = normalizer;
-    }
-
     public SyncOptions ValidateArgs(ParsedArgs parsedArgs)
     {
-        var source = Require(parsedArgs.Flags, "--source");
-        var replica = Require(parsedArgs.Flags, "--replica");
-        var intervalStr = Require(parsedArgs.Flags, "--interval");
-        var logPath = Require(parsedArgs.Flags, "--log");
+        var source = Require(parsedArgs.Tokens, "--source");
+        var replica = Require(parsedArgs.Tokens, "--replica");
+        var intervalStr = Require(parsedArgs.Tokens, "--interval");
+        var logPath = Require(parsedArgs.Tokens, "--log");
         var isDebug = parsedArgs.Switches.Contains("--debug");
 
         var interval = ParseInterval(intervalStr);
         if (interval <= TimeSpan.Zero)
             throw new ArgumentException("--interval must be positive.");
 
-        var normSource = _normalizer.NormalizeExistingDirectory(source, true, "--source");
-        var normReplica = _normalizer.NormalizeDirectory(replica, "--replica");
-        var normLog = _normalizer.NormalizeFilePath(logPath, "--log");
+        var normSource = pathNormalizer.NormalizeExistingDirectory(source, true, "--source");
+        var normReplica = pathNormalizer.NormalizeDirectory(replica, "--replica");
+        var normLog = pathNormalizer.NormalizeFilePath(logPath, "--log");
 
         return new SyncOptions
         {
@@ -39,7 +31,7 @@ public class ArgsValidator : IArgsValidator
         };
     }
 
-    private static string Require(Dictionary<string, string> dict, string key)
+    private static string Require(IReadOnlyDictionary<string, string> dict, string key)
     {
         if (!dict.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
             throw new ArgumentException($"Lack of required token {key}");

@@ -1,82 +1,61 @@
 ﻿using System.IO.Abstractions;
-using FolderSync.Core.Operations;
+using FolderSync.Core.Interfaces;
 using FolderSync.Core.Results;
-using FolderSync.Core.Sync.Scanning;
-using FolderSync.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace FolderSync.Core.Sync.Operations;
 
-public class CopyEngine(ILogger<CopyEngine> logger, IFileSystem fs, IFileOps fileOps)
+public sealed class CopyEngine(IFileSystem fs, IFileCopier fileCopier, ILogger<CopyEngine> log)
 {
-    public async Task<CopyStats> ExecAsync(DirectorySnapshot source, DirectorySnapshot replica, DiffResult diff,
-        CancellationToken ct = default)
-    {
-        var copy = new CopyStats();
-
-        CreateDirectories(diff.DirsToCreate, replica.RootPath, copy, ct);
-        await SyncFilesAsync(diff.FilesToCopy, source.RootPath, replica.RootPath, source.Files, copy,
-            s => s.FilesCopied++, ct);
-        await SyncFilesAsync(diff.FilesToUpdate, source.RootPath, replica.RootPath, source.Files, copy,
-            s => s.FilesUpdated++, ct);
-
-        return copy;
-    }
-
-    private void CreateDirectories(IEnumerable<string> dirsToCreate, string root, CopyStats copy,
+    public async Task<OperationStats> Run(string sourceRoot, string replicaRoot, IEnumerable<string> filesToCopy,
+        IEnumerable<string> filesToUpdate, IEnumerable<string> directoriesToCreate, OperationStats stats,
         CancellationToken ct)
     {
-        foreach (var relDir in dirsToCreate)
+        var ctx = new CopyContext(fs, fileCopier, log, sourceRoot, replicaRoot);
+
+        ctx.CreateDir(replicaRoot, directoriesToCreate, stats);
+        await ctx.SyncFiles(filesToCopy, s => s.FilesCopied++, stats, ct);
+        await ctx.SyncFiles(filesToUpdate, s => s.FilesUpdated++, stats, ct);
+
+        return stats;
+    }
+
+    private sealed class CopyContext(
+        IFileSystem fs,
+        IFileCopier fileCopier,
+        ILogger logger,
+        string sourceRoot,
+        string replicaRoot)
+    {
+        internal void CreateDir(string rootPath, IEnumerable<string> directoriesToCreate,
+            OperationStats stats)
         {
-            ct.ThrowIfCancellationRequested();
-            var targetDir = fs.Path.Combine(root, relDir);
-            try
-            {
-                fs.Directory.CreateDirectory(targetDir);
-                copy.DirsCreated++;
-                logger.LogInformation("Created directory: {Dir}", targetDir);
-            }
-            catch (Exception ex) when (ex.IsBenign())
-            {
-                logger.LogWarning("Failed to create directory: {Dir}", targetDir);
-                logger.LogDebug(ex, "Failed to create directory: {Dir}", targetDir);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning("Unexpected error: {Msg}", ex.Message);
-                logger.LogDebug(ex, "Unexpected error");
-            }
+            directoriesToCreate.Where(path => !fs.Directory.Exists(fs.Path.Combine(rootPath, path)))
+                .ToList()
+                .ForEach(path =>
+                {
+                    path = fs.Path.Combine(rootPath, path);
+                    fs.Directory.CreateDirectory(path);
+                    stats.DirsCreated++;
+                    logger.LogDebug("Create dir {Path}", path);
+                });
         }
-    }
 
-    // Considered using a record (data class) for the parameters, but for this small project
-    // introducing an extra file/type would add overhead with little benefit.
-    private async Task SyncFilesAsync(IEnumerable<string> relFiles, string rootSrc, string rootDst,
-        IReadOnlyDictionary<string, FileMetadata> info, CopyStats stats, Action<CopyStats> bump,
-        CancellationToken ct)
-    {
-        foreach (var rel in relFiles)
+        public async Task SyncFiles(IEnumerable<string> relPaths, Action<OperationStats> bump, OperationStats stats,
+            CancellationToken ct)
         {
-            ct.ThrowIfCancellationRequested();
-
-            var src = fs.Path.Combine(rootSrc, rel);
-            var dst = fs.Path.Combine(rootDst, rel);
-
-            try
+            foreach (var rel in relPaths)
             {
-                await fileOps.AtomicCopyAsync(src, dst, ct).ConfigureAwait(false);
-                fs.File.SetLastWriteTimeUtc(dst, info[rel].LastWriteTimeUtc);
+                var src = fs.Path.Combine(sourceRoot, rel);
+                var dst = fs.Path.Combine(replicaRoot, rel);
+                fs.Directory.CreateDirectory(fs.Path.GetDirectoryName(dst)!);
 
-                var beforeCopied = stats.FilesCopied;
+                fs.File.SetLastWriteTimeUtc(dst, fs.File.GetLastWriteTimeUtc(src));
+                await fileCopier.AtomicCopyAsync(src, dst, ct);
+                var beforeOperation = stats.FilesCopied;
                 bump(stats);
-                var verb = stats.FilesCopied > beforeCopied ? "Copied" : "Updated";
-
-                logger.LogInformation("{Verb}: {Rel} -> {Dst}", verb, rel, dst);
-            }
-            catch (Exception ex) when (ex.IsBenign())
-            {
-                logger.LogError("Failed to process file: {Src} -> {Dst}: {Error}", src, dst, ex.Message);
-                logger.LogDebug(ex, "Stacktrace: ");
+                var verb = stats.FilesCopied != beforeOperation ? "Copied" : "Updated";
+                logger.LogDebug("{Verb}: {Rel}", verb, rel);
             }
         }
     }

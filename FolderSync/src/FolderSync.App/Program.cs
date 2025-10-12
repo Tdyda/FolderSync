@@ -1,10 +1,10 @@
 ﻿using System.IO.Abstractions;
 using FolderSync.App.Cli;
-using FolderSync.App.Cli.Interfaces;
 using FolderSync.Core.Application;
 using FolderSync.Core.Configuration;
+using FolderSync.Core.Interfaces;
 using FolderSync.Core.Logging;
-using FolderSync.Core.Operations;
+using FolderSync.Core.Results;
 using FolderSync.Core.Sync.Diff;
 using FolderSync.Core.Sync.Operations;
 using FolderSync.Core.Sync.Scanning;
@@ -26,13 +26,13 @@ public static class Program
             {
                 s.AddSingleton(args);
 
-                s.AddSingleton<IArgsValidator, ArgsValidator>();
-                s.AddSingleton<IArgsLexer, ArgsLexer>();
-                s.AddSingleton<IArgsParser, ArgsParser>();
+                s.AddSingleton<ArgsValidator>();
+                s.AddSingleton<ArgsLexer>();
+                s.AddSingleton<PathNormalizer>();
 
                 s.AddSingleton<IFileSystem, FileSystem>();
-                s.AddSingleton<IFileOps, FileOps>();
-                s.AddSingleton<IPathNormalizer, PathNormalizer>();
+                s.AddSingleton<IFileCopier, FileCopier>();
+                s.AddSingleton<PathNormalizer>();
 
                 s.AddSingleton<DirectoryScanner>();
                 s.AddSingleton<DiffEngine>();

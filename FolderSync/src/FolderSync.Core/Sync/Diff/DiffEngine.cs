@@ -25,7 +25,7 @@ public class DiffEngine(ILogger<DiffEngine> logger)
             FilesToUpdate = filesToUpdate
         };
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Diff: Dirs to create: {Create}, dirs to delete: {DeleteDirs}, files to copy: {Copy}, files to update: {Update}, files to delete: {DeleteFiles}",
             result.DirsToCreate.Count, result.DirsToDelete.Count, result.FilesToCopy.Count, result.FilesToUpdate.Count,
             result.FilesToDelete.Count);
@@ -69,6 +69,6 @@ public class DiffEngine(ILogger<DiffEngine> logger)
         if (a.Size != b.Size) return false;
 
         var diff = (a.LastWriteTimeUtc - b.LastWriteTimeUtc).Duration();
-        return diff > TimeSpan.FromSeconds(2);
+        return diff <= TimeSpan.FromSeconds(2);
     }
 }

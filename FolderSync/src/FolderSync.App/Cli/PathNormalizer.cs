@@ -1,13 +1,13 @@
-﻿using FolderSync.App.Cli.Interfaces;
+﻿using System.IO.Abstractions;
 
 namespace FolderSync.App.Cli;
 
-public class PathNormalizer : IPathNormalizer
+public class PathNormalizer(IFileSystem fs)
 {
     public string NormalizeExistingDirectory(string path, bool mustExist, string name)
     {
-        var full = Path.GetFullPath(path);
-        if (mustExist && !Directory.Exists(full))
+        var full = fs.Path.GetFullPath(path);
+        if (mustExist && !fs.Directory.Exists(full))
             throw new ArgumentException($"Path {name} doesn't exist: {full}");
         return TrimEndingSeparators(full);
     }
@@ -16,7 +16,7 @@ public class PathNormalizer : IPathNormalizer
     {
         try
         {
-            var full = Path.GetFullPath(path);
+            var full = fs.Path.GetFullPath(path);
             return TrimEndingSeparators(full);
         }
         catch (Exception ex)
@@ -29,11 +29,11 @@ public class PathNormalizer : IPathNormalizer
     {
         try
         {
-            var full = Path.GetFullPath(path);
-            var dir = Path.GetDirectoryName(full);
+            var full = fs.Path.GetFullPath(path);
+            var dir = fs.Path.GetDirectoryName(full);
             if (string.IsNullOrWhiteSpace(dir))
                 throw new ArgumentException($"{name}: The file path must include a parent directory");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            if (!fs.Directory.Exists(dir)) fs.Directory.CreateDirectory(dir);
             return full;
         }
         catch (Exception ex)
@@ -42,9 +42,9 @@ public class PathNormalizer : IPathNormalizer
         }
     }
 
-    private static string TrimEndingSeparators(string path)
+    private string TrimEndingSeparators(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return path;
-        return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return path.TrimEnd(fs.Path.DirectorySeparatorChar, fs.Path.AltDirectorySeparatorChar);
     }
 }

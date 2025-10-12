@@ -2,7 +2,6 @@
 
 public static class PathComparer
 {
-    public static StringComparer ForPaths => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-        ? StringComparer.OrdinalIgnoreCase
-        : StringComparer.Ordinal;
+    public static StringComparer ForPaths =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 }

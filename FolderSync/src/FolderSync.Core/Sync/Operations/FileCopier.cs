@@ -1,14 +1,14 @@
 ﻿using System.IO.Abstractions;
-using FolderSync.Core.Operations;
+using FolderSync.Core.Interfaces;
 
 namespace FolderSync.Core.Sync.Operations;
 
-public class FileOps : IFileOps
+public class FileCopier : IFileCopier
 {
     private const string TempSuffix = ".fs_temp";
     private readonly IFileSystem _fs;
 
-    public FileOps(IFileSystem fs)
+    public FileCopier(IFileSystem fs)
     {
         _fs = fs;
     }

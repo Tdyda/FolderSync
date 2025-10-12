@@ -33,7 +33,7 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
             Directories = dirs
         };
 
-        logger.LogInformation("Built {Snapshot}", snapshot);
+        logger.LogDebug("Built {Snapshot}", snapshot);
         return Task.FromResult(snapshot);
     }
 
@@ -43,7 +43,8 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
         {
             foreach (var dir in fs.Directory.EnumerateDirectories(currentDir))
             {
-                if (IsReparsePoint(dir))
+                var di = fs.DirectoryInfo.New(dir);
+                if (di.Attributes.HasFlag(FileAttributes.ReparsePoint) || !string.IsNullOrEmpty(di.LinkTarget))
                 {
                     logger.LogDebug("Skipping reparse point: {Dir}", dir);
                     continue;
@@ -73,8 +74,14 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
                 try
                 {
                     var fi = fs.FileInfo.New(file);
-                    var meta = new FileMetadata(fi.Exists ? fi.Length : 0L,
-                        fi.Exists ? fi.LastWriteTimeUtc : DateTime.MinValue);
+
+                    if (fi.Attributes.HasFlag(FileAttributes.ReparsePoint) || !string.IsNullOrEmpty(fi.LinkTarget))
+                    {
+                        logger.LogDebug("Skipping reparse point: {File}", file);
+                        continue;
+                    }
+
+                    var meta = new FileMetadata(fi.Length, fi.LastWriteTimeUtc);
                     var relFile = ToRelative(rootPath, file);
                     files[relFile] = meta;
                 }
@@ -88,19 +95,6 @@ public sealed class DirectoryScanner(ILogger<DirectoryScanner> logger, IFileSyst
         {
             logger.LogWarning("Failed to enumerate files in {Current}: {Error}", currentDir, ex.Message);
             logger.LogDebug(ex, "Stacktrace: ");
-        }
-    }
-
-    private bool IsReparsePoint(string path)
-    {
-        try
-        {
-            var attr = fs.File.GetAttributes(path);
-            return attr.HasFlag(FileAttributes.ReparsePoint);
-        }
-        catch
-        {
-            return false;
         }
     }
 
