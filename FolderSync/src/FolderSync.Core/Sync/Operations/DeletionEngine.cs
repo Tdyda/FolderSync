@@ -9,7 +9,7 @@ namespace FolderSync.Core.Sync.Operations;
 public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
 {
     public Task<OperationStats> Run(DirectorySnapshot replica, DiffResult diff,
-        OperationStats stats, 
+        OperationStats stats,
         CancellationToken ct = default)
     {
         var ctx = new DeletionContext(fs, logger, replica.RootPath, stats);
@@ -31,7 +31,8 @@ public class DeletionEngine(ILogger<DeletionEngine> logger, IFileSystem fs)
                     {
                         ct.ThrowIfCancellationRequested();
                         if (fs.File.GetAttributes(fs.Path.Combine(replicaRoot, path)).HasFlag(FileAttributes.ReadOnly))
-                            fs.File.SetAttributes(fs.Path.Combine(replicaRoot, path), fs.File.GetAttributes(fs.Path.Combine(replicaRoot, path)) & ~FileAttributes.ReadOnly);
+                            fs.File.SetAttributes(fs.Path.Combine(replicaRoot, path),
+                                fs.File.GetAttributes(fs.Path.Combine(replicaRoot, path)) & ~FileAttributes.ReadOnly);
 
                         fs.File.Delete(fs.Path.Combine(replicaRoot, path));
                         stats.FilesDeleted++;

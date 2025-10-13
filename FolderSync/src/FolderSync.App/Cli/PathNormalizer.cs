@@ -1,8 +1,9 @@
 ﻿using System.IO.Abstractions;
+using FolderSync.App.Interfaces;
 
 namespace FolderSync.App.Cli;
 
-public class PathNormalizer(IFileSystem fs)
+public class PathNormalizer(IFileSystem fs) : IPathNormalizer
 {
     public string NormalizeExistingDirectory(string path, bool mustExist, string name)
     {
@@ -30,9 +31,8 @@ public class PathNormalizer(IFileSystem fs)
         try
         {
             var full = fs.Path.GetFullPath(path);
-            var dir = fs.Path.GetDirectoryName(full);
-            if (string.IsNullOrWhiteSpace(dir))
-                throw new ArgumentException($"{name}: The file path must include a parent directory");
+            var dir = fs.Path.GetDirectoryName(full)!;
+
             if (!fs.Directory.Exists(dir)) fs.Directory.CreateDirectory(dir);
             return full;
         }

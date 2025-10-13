@@ -1,4 +1,5 @@
-﻿using FolderSync.Core.Application;
+﻿using FolderSync.App.Interfaces;
+using FolderSync.Core.Application;
 using FolderSync.Core.Configuration;
 using FolderSync.Core.Logging;
 
@@ -7,13 +8,12 @@ namespace FolderSync.App.Cli;
 public class AppRunner
 {
     private readonly string[] _args;
-    private readonly ArgsLexer _lexer;
+    private readonly IArgsLexer _lexer;
     private readonly Func<SyncOptions, SyncLoop> _syncLoopFactory;
-    private readonly ArgsValidator _validator;
+    private readonly IArgsValidator _validator;
 
-    public AppRunner(string[] args,
-        ArgsLexer argsLexer,
-        Func<SyncOptions, SyncLoop> syncLoopFactory, ArgsValidator validator)
+    public AppRunner(string[] args, IArgsLexer argsLexer, Func<SyncOptions, SyncLoop> syncLoopFactory,
+        IArgsValidator validator)
     {
         _args = args;
         _lexer = argsLexer;

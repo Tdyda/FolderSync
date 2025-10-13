@@ -1,8 +1,9 @@
-﻿using FolderSync.Core.Configuration;
+﻿using FolderSync.App.Interfaces;
+using FolderSync.Core.Configuration;
 
 namespace FolderSync.App.Cli;
 
-public class ArgsLexer
+public class ArgsLexer : IArgsLexer
 {
     private readonly HashSet<string> _knownFlags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -26,9 +27,7 @@ public class ArgsLexer
         if (args.Length == 0)
             throw new ArgumentException("Missing require arguments. Use --help");
 
-        foreach (var token in args)
-            if (token.StartsWith('-') && _knownSwitches.Contains(token))
-                switches.Add(token);
+        args.Where(token => token.StartsWith('-') && _knownSwitches.Contains(token)).ToList().ForEach(token => switches.Add(token));
 
         string? pendingOption = null;
         foreach (var token in args)

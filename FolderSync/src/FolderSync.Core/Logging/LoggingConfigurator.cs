@@ -3,7 +3,7 @@ using Serilog.Events;
 
 namespace FolderSync.Core.Logging;
 
-public class LoggingConfigurator
+public static class LoggingConfigurator
 {
     public static void Apply(string logFilePath, bool isDebug)
     {

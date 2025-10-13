@@ -50,8 +50,8 @@ public sealed class CopyEngine(IFileSystem fs, IFileCopier fileCopier, ILogger<C
                 var dst = fs.Path.Combine(replicaRoot, rel);
                 fs.Directory.CreateDirectory(fs.Path.GetDirectoryName(dst)!);
 
-                fs.File.SetLastWriteTimeUtc(dst, fs.File.GetLastWriteTimeUtc(src));
                 await fileCopier.AtomicCopyAsync(src, dst, ct);
+                fs.File.SetLastWriteTimeUtc(dst, fs.File.GetLastWriteTimeUtc(src));
                 var beforeOperation = stats.FilesCopied;
                 bump(stats);
                 var verb = stats.FilesCopied != beforeOperation ? "Copied" : "Updated";

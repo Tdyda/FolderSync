@@ -1,9 +1,10 @@
 ﻿using System.Globalization;
+using FolderSync.App.Interfaces;
 using FolderSync.Core.Configuration;
 
 namespace FolderSync.App.Cli;
 
-public class ArgsValidator(PathNormalizer pathNormalizer)
+public class ArgsValidator(IPathNormalizer pathNormalizer) : IArgsValidator
 {
     public SyncOptions ValidateArgs(ParsedArgs parsedArgs)
     {
@@ -41,13 +42,11 @@ public class ArgsValidator(PathNormalizer pathNormalizer)
     private static TimeSpan ParseInterval(string value)
     {
         if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
-        {
-            if (seconds <= 0) throw new ArgumentException("--interval in seconds must be greater than 0");
             return TimeSpan.FromSeconds(seconds);
-        }
 
         if (TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var ts))
             return ts;
+
         throw new ArgumentException("Incorrect format --interval. Use seconds or HH:MM:SS.");
     }
 }

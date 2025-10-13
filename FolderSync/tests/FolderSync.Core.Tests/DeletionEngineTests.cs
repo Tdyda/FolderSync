@@ -7,222 +7,230 @@ using FolderSync.Core.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace FolderSync.Core.Tests
+namespace FolderSync.Core.Tests;
+
+public class DeletionEngineTests
 {
-    public class DeletionEngineTests
+    private static DeletionEngine Create(MockFileSystem fs)
     {
-        private static DeletionEngine Create(MockFileSystem fs) =>
-            new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
+        return new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
+    }
 
-        private static string J(MockFileSystem fs, params string[] parts)
+    private static string J(MockFileSystem fs, params string[] parts)
+    {
+        var p = parts[0];
+        for (var i = 1; i < parts.Length; i++)
+            p = fs.Path.Combine(p, parts[i]);
+        return p;
+    }
+
+    private static DirectorySnapshot Snap(MockFileSystem fs, string root,
+        IEnumerable<string> dirs, IDictionary<string, FileMetadata> files)
+    {
+        return new DirectorySnapshot
         {
-            var p = parts[0];
-            for (int i = 1; i < parts.Length; i++)
-                p = fs.Path.Combine(p, parts[i]);
-            return p;
-        }
+            RootPath = root,
+            Directories = new HashSet<string>(dirs, PathComparer.ForPaths),
+            Files = new Dictionary<string, FileMetadata>(files, PathComparer.ForPaths)
+        };
+    }
 
-        private static DirectorySnapshot Snap(MockFileSystem fs, string root,
-            IEnumerable<string> dirs, IDictionary<string, FileMetadata> files)
-            => new DirectorySnapshot
-            {
-                RootPath = root,
-                Directories = new HashSet<string>(dirs, PathComparer.ForPaths),
-                Files = new Dictionary<string, FileMetadata>(files, PathComparer.ForPaths)
-            };
-
-        private static DiffResult Diff(IEnumerable<string> dirsToDelete, IEnumerable<string> filesToDelete) =>
-            new DiffResult
-            {
-                DirsToCreate = new HashSet<string>(PathComparer.ForPaths),
-                DirsToDelete = new HashSet<string>(dirsToDelete, PathComparer.ForPaths),
-                FilesToCopy = new HashSet<string>(PathComparer.ForPaths),
-                FilesToUpdate = new HashSet<string>(PathComparer.ForPaths),
-                FilesToDelete = new HashSet<string>(filesToDelete, PathComparer.ForPaths)
-            };
-
-        [Fact]
-        public async Task RemoveFiles_Deletes_Existing_Files_Including_ReadOnly()
+    private static DiffResult Diff(IEnumerable<string> dirsToDelete, IEnumerable<string> filesToDelete)
+    {
+        return new DiffResult
         {
-            var fs = new MockFileSystem();
-            var root = "replica";
-            fs.AddDirectory(root);
+            DirsToCreate = new HashSet<string>(PathComparer.ForPaths),
+            DirsToDelete = new HashSet<string>(dirsToDelete, PathComparer.ForPaths),
+            FilesToCopy = new HashSet<string>(PathComparer.ForPaths),
+            FilesToUpdate = new HashSet<string>(PathComparer.ForPaths),
+            FilesToDelete = new HashSet<string>(filesToDelete, PathComparer.ForPaths)
+        };
+    }
 
-            fs.AddFile(J(fs, root, "a.txt"), new MockFileData("A"));
-            fs.AddFile(J(fs, root, "ro.bin"), new MockFileData(new byte[] { 1, 2 }) { Attributes = FileAttributes.ReadOnly });
+    [Fact]
+    public async Task RemoveFiles_Deletes_Existing_Files_Including_ReadOnly()
+    {
+        var fs = new MockFileSystem();
+        var root = "replica";
+        fs.AddDirectory(root);
 
-            var replica = Snap(fs, root, new[] { "" }, new Dictionary<string, FileMetadata>());
-            var diff = Diff(Array.Empty<string>(), new[] { "a.txt", "ro.bin", "missing.dat" });
+        fs.AddFile(J(fs, root, "a.txt"), new MockFileData("A"));
+        fs.AddFile(J(fs, root, "ro.bin"),
+            new MockFileData(new byte[] { 1, 2 }) { Attributes = FileAttributes.ReadOnly });
 
-            var engine = Create(fs);
-            var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
+        var replica = Snap(fs, root, new[] { "" }, new Dictionary<string, FileMetadata>());
+        var diff = Diff(Array.Empty<string>(), new[] { "a.txt", "ro.bin", "missing.dat" });
 
-            Assert.False(fs.FileExists(J(fs, root, "a.txt")));
-            Assert.False(fs.FileExists(J(fs, root, "ro.bin")));
-            Assert.Equal(2, stats.FilesDeleted);
-        }
+        var engine = Create(fs);
+        var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
 
-        [Fact]
-        public async Task RemoveDirectories_Deletes_Empty_Subdir_And_Skips_NonEmpty_Parent()
+        Assert.False(fs.FileExists(J(fs, root, "a.txt")));
+        Assert.False(fs.FileExists(J(fs, root, "ro.bin")));
+        Assert.Equal(2, stats.FilesDeleted);
+    }
+
+    [Fact]
+    public async Task RemoveDirectories_Deletes_Empty_Subdir_And_Skips_NonEmpty_Parent()
+    {
+        var fs = new MockFileSystem();
+        var root = "replica";
+        fs.AddDirectory(root);
+
+        fs.AddDirectory(fs.Path.Combine(root, "dir"));
+        fs.AddDirectory(fs.Path.Combine(root, "dir", "sub"));
+        fs.AddDirectory(fs.Path.Combine(root, "nonempty"));
+        fs.AddFile(fs.Path.Combine(root, "nonempty", "keep.txt"), new MockFileData("x"));
+
+        var replica = new DirectorySnapshot
         {
-            var fs = new MockFileSystem();
-            var root = "replica";
-            fs.AddDirectory(root);
+            RootPath = root,
+            Directories = new HashSet<string> { "", "dir", "dir/sub", "nonempty" },
+            Files = new Dictionary<string, FileMetadata>()
+        };
 
-            fs.AddDirectory(fs.Path.Combine(root, "dir"));
-            fs.AddDirectory(fs.Path.Combine(root, "dir", "sub"));
-            fs.AddDirectory(fs.Path.Combine(root, "nonempty"));
-            fs.AddFile(fs.Path.Combine(root, "nonempty", "keep.txt"), new MockFileData("x"));
-
-            var replica = new DirectorySnapshot
-            {
-                RootPath = root,
-                Directories = new HashSet<string> { "", "dir", "dir/sub", "nonempty" },
-                Files = new Dictionary<string, FileMetadata>()
-            };
-
-            var diff = new DiffResult
-            {
-                DirsToCreate = new HashSet<string>(),
-                DirsToDelete = new HashSet<string> { "dir", "dir/sub", "nonempty" },
-                FilesToCopy = new HashSet<string>(),
-                FilesToUpdate = new HashSet<string>(),
-                FilesToDelete = new HashSet<string>()
-            };
-
-            var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
-            var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
-
-            Assert.False(fs.Directory.Exists(fs.Path.Combine(root, "dir", "sub"))); // skasowany
-            Assert.True(fs.Directory.Exists(fs.Path.Combine(root, "dir")));          // został, bo na starcie nie był pusty
-            Assert.True(fs.Directory.Exists(fs.Path.Combine(root, "nonempty")));     // niepusty → pominięty
-            Assert.Equal(1, stats.DirsDeleted);                                      // tylko „sub”
-        }
-
-
-        [Fact]
-        public async Task RemoveFiles_BenignException_IsCaught_NoIncrement_NoThrow()
+        var diff = new DiffResult
         {
-            var root = "replica";
-            var fileRel = "bad.txt";
-            var fileFull = $"{root}/{fileRel}";
+            DirsToCreate = new HashSet<string>(),
+            DirsToDelete = new HashSet<string> { "dir", "dir/sub", "nonempty" },
+            FilesToCopy = new HashSet<string>(),
+            FilesToUpdate = new HashSet<string>(),
+            FilesToDelete = new HashSet<string>()
+        };
 
-            var path = new Mock<IPath>();
-            path.SetupGet(p => p.DirectorySeparatorChar).Returns('/');
-            path.SetupGet(p => p.AltDirectorySeparatorChar).Returns('\\');
-            path.Setup(p => p.Combine(root, fileRel)).Returns(fileFull);
+        var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
+        var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
 
-            var file = new Mock<IFile>();
-            file.Setup(f => f.Exists(fileFull)).Returns(true);
-            file.Setup(f => f.GetAttributes(fileFull)).Returns(FileAttributes.Normal);
-            file.Setup(f => f.Delete(fileFull)).Throws(new UnauthorizedAccessException());
+        Assert.False(fs.Directory.Exists(fs.Path.Combine(root, "dir", "sub")));
+        Assert.True(fs.Directory.Exists(fs.Path.Combine(root, "dir")));
+        Assert.True(fs.Directory.Exists(fs.Path.Combine(root, "nonempty")));
+        Assert.Equal(1, stats.DirsDeleted);
+    }
 
-            var dir = new Mock<IDirectory>();
-            dir.Setup(d => d.Exists(root)).Returns(true);
 
-            var fsMock = new Mock<IFileSystem>();
-            fsMock.SetupGet(f => f.Path).Returns(path.Object);
-            fsMock.SetupGet(f => f.File).Returns(file.Object);
-            fsMock.SetupGet(f => f.Directory).Returns(dir.Object);
+    [Fact]
+    public async Task RemoveFiles_BenignException_IsCaught_NoIncrement_NoThrow()
+    {
+        var root = "replica";
+        var fileRel = "bad.txt";
+        var fileFull = $"{root}/{fileRel}";
 
-            var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fsMock.Object);
+        var path = new Mock<IPath>();
+        path.SetupGet(p => p.DirectorySeparatorChar).Returns('/');
+        path.SetupGet(p => p.AltDirectorySeparatorChar).Returns('\\');
+        path.Setup(p => p.Combine(root, fileRel)).Returns(fileFull);
 
-            var replica = new DirectorySnapshot { RootPath = root, Directories = new HashSet<string>(), Files = new Dictionary<string, FileMetadata>() };
-            var diff = Diff(Array.Empty<string>(), new[] { fileRel });
+        var file = new Mock<IFile>();
+        file.Setup(f => f.Exists(fileFull)).Returns(true);
+        file.Setup(f => f.GetAttributes(fileFull)).Returns(FileAttributes.Normal);
+        file.Setup(f => f.Delete(fileFull)).Throws(new UnauthorizedAccessException());
 
-            var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
+        var dir = new Mock<IDirectory>();
+        dir.Setup(d => d.Exists(root)).Returns(true);
 
-            Assert.Equal(0, stats.FilesDeleted);
-        }
+        var fsMock = new Mock<IFileSystem>();
+        fsMock.SetupGet(f => f.Path).Returns(path.Object);
+        fsMock.SetupGet(f => f.File).Returns(file.Object);
+        fsMock.SetupGet(f => f.Directory).Returns(dir.Object);
 
-        [Fact]
-        public async Task RemoveDirectories_BenignException_IsCaught_NoIncrement_NoThrow()
+        var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fsMock.Object);
+
+        var replica = new DirectorySnapshot
+            { RootPath = root, Directories = new HashSet<string>(), Files = new Dictionary<string, FileMetadata>() };
+        var diff = Diff(Array.Empty<string>(), new[] { fileRel });
+
+        var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
+
+        Assert.Equal(0, stats.FilesDeleted);
+    }
+
+    [Fact]
+    public async Task RemoveDirectories_BenignException_IsCaught_NoIncrement_NoThrow()
+    {
+        var root = "replica";
+        var dirRel = "to-del";
+        var dirFull = $"{root}/{dirRel}";
+
+        var path = new Mock<IPath>();
+        path.SetupGet(p => p.DirectorySeparatorChar).Returns('/');
+        path.SetupGet(p => p.AltDirectorySeparatorChar).Returns('\\');
+        path.Setup(p => p.Combine(root, dirRel)).Returns(dirFull);
+
+        var dir = new Mock<IDirectory>();
+        dir.Setup(d => d.Exists(root)).Returns(true);
+        dir.Setup(d => d.Exists(dirFull)).Returns(true);
+        dir.Setup(d => d.EnumerateFileSystemEntries(dirFull)).Returns(Array.Empty<string>());
+        dir.Setup(d => d.Delete(dirFull)).Throws(new UnauthorizedAccessException());
+
+        var fsMock = new Mock<IFileSystem>();
+        fsMock.SetupGet(f => f.Path).Returns(path.Object);
+        fsMock.SetupGet(f => f.Directory).Returns(dir.Object);
+
+        var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fsMock.Object);
+
+        var replica = new DirectorySnapshot
+            { RootPath = root, Directories = new HashSet<string>(), Files = new Dictionary<string, FileMetadata>() };
+        var diff = Diff(new[] { dirRel }, Array.Empty<string>());
+
+        var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
+
+        Assert.Equal(0, stats.DirsDeleted);
+    }
+
+    [Fact]
+    public async Task Cancellation_Stops_Processing_Without_Deletions()
+    {
+        var fs = new MockFileSystem();
+        var root = "replica";
+        fs.AddDirectory(root);
+        fs.AddFile(fs.Path.Combine(root, "a.txt"), new MockFileData("A"));
+        fs.AddFile(fs.Path.Combine(root, "b.txt"), new MockFileData("B"));
+
+        var replica = new DirectorySnapshot
         {
-            var root = "replica";
-            var dirRel = "to-del";
-            var dirFull = $"{root}/{dirRel}";
+            RootPath = root,
+            Directories = new HashSet<string>(),
+            Files = new Dictionary<string, FileMetadata>()
+        };
 
-            var path = new Mock<IPath>();
-            path.SetupGet(p => p.DirectorySeparatorChar).Returns('/');
-            path.SetupGet(p => p.AltDirectorySeparatorChar).Returns('\\');
-            path.Setup(p => p.Combine(root, dirRel)).Returns(dirFull);
-
-            var dir = new Mock<IDirectory>();
-            dir.Setup(d => d.Exists(root)).Returns(true);
-            dir.Setup(d => d.Exists(dirFull)).Returns(true);
-            dir.Setup(d => d.EnumerateFileSystemEntries(dirFull)).Returns(Array.Empty<string>());
-            dir.Setup(d => d.Delete(dirFull)).Throws(new UnauthorizedAccessException());
-
-            var fsMock = new Mock<IFileSystem>();
-            fsMock.SetupGet(f => f.Path).Returns(path.Object);
-            fsMock.SetupGet(f => f.Directory).Returns(dir.Object);
-
-            var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fsMock.Object);
-
-            var replica = new DirectorySnapshot { RootPath = root, Directories = new HashSet<string>(), Files = new Dictionary<string, FileMetadata>() };
-            var diff = Diff(new[] { dirRel }, Array.Empty<string>());
-
-            var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
-
-            Assert.Equal(0, stats.DirsDeleted);
-        }
-
-        [Fact]
-        public async Task Cancellation_Stops_Processing_Without_Deletions()
+        var diff = new DiffResult
         {
-            var fs = new MockFileSystem();
-            var root = "replica";
-            fs.AddDirectory(root);
-            fs.AddFile(fs.Path.Combine(root, "a.txt"), new MockFileData("A"));
-            fs.AddFile(fs.Path.Combine(root, "b.txt"), new MockFileData("B"));
+            DirsToCreate = new HashSet<string>(),
+            DirsToDelete = new HashSet<string>(),
+            FilesToCopy = new HashSet<string>(),
+            FilesToUpdate = new HashSet<string>(),
+            FilesToDelete = new HashSet<string> { "a.txt", "b.txt" }
+        };
 
-            var replica = new DirectorySnapshot
-            {
-                RootPath = root,
-                Directories = new HashSet<string>(),
-                Files = new Dictionary<string, FileMetadata>()
-            };
+        var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
 
-            var diff = new DiffResult
-            {
-                DirsToCreate = new HashSet<string>(),
-                DirsToDelete = new HashSet<string>(),
-                FilesToCopy = new HashSet<string>(),
-                FilesToUpdate = new HashSet<string>(),
-                FilesToDelete = new HashSet<string> { "a.txt", "b.txt" }
-            };
+        var stats = await engine.Run(replica, diff, new OperationStats(), cts.Token);
 
-            var engine = new DeletionEngine(new NullLogger<DeletionEngine>(), fs);
-            var cts = new CancellationTokenSource();
-            cts.Cancel();
-
-            var stats = await engine.Run(replica, diff, new OperationStats(), cts.Token);
-
-            Assert.True(fs.FileExists(fs.Path.Combine(root, "a.txt")));
-            Assert.True(fs.FileExists(fs.Path.Combine(root, "b.txt")));
-            Assert.Equal(0, stats.FilesDeleted);
-            Assert.Equal(0, stats.DirsDeleted);
-        }
+        Assert.True(fs.FileExists(fs.Path.Combine(root, "a.txt")));
+        Assert.True(fs.FileExists(fs.Path.Combine(root, "b.txt")));
+        Assert.Equal(0, stats.FilesDeleted);
+        Assert.Equal(0, stats.DirsDeleted);
+    }
 
 
-        [Fact]
-        public async Task RemoveDirectories_Skips_When_NotEmpty()
-        {
-            var fs = new MockFileSystem();
-            var root = "replica";
-            fs.AddDirectory(root);
-            fs.AddDirectory(J(fs, root, "keep"));
-            fs.AddDirectory(J(fs, root, "keep", "child"));
-            fs.AddFile(J(fs, root, "keep", "child", "x.txt"), new MockFileData("x"));
+    [Fact]
+    public async Task RemoveDirectories_Skips_When_NotEmpty()
+    {
+        var fs = new MockFileSystem();
+        var root = "replica";
+        fs.AddDirectory(root);
+        fs.AddDirectory(J(fs, root, "keep"));
+        fs.AddDirectory(J(fs, root, "keep", "child"));
+        fs.AddFile(J(fs, root, "keep", "child", "x.txt"), new MockFileData("x"));
 
-            var replica = Snap(fs, root, new[] { "", "keep", "keep/child" }, new Dictionary<string, FileMetadata>());
-            var diff = Diff(new[] { "keep" }, Array.Empty<string>());
+        var replica = Snap(fs, root, new[] { "", "keep", "keep/child" }, new Dictionary<string, FileMetadata>());
+        var diff = Diff(new[] { "keep" }, Array.Empty<string>());
 
-            var engine = Create(fs);
-            var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
+        var engine = Create(fs);
+        var stats = await engine.Run(replica, diff, new OperationStats(), CancellationToken.None);
 
-            Assert.True(fs.Directory.Exists(J(fs, root, "keep")));
-            Assert.Equal(0, stats.DirsDeleted);
-        }
+        Assert.True(fs.Directory.Exists(J(fs, root, "keep")));
+        Assert.Equal(0, stats.DirsDeleted);
     }
 }
